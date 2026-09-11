@@ -1,4 +1,4 @@
-# observability
+# AI powered cloud monitoring and observability platform
 
 ## 1. Project Overview
 Observability is a full-stack AI-powered cloud observability platform.
