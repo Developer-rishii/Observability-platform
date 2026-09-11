@@ -2,34 +2,26 @@
 
 ## 1.1 Product Name
 
-Working name: **DevBridge Network** (previously referred to as "Growthelpy Developer Network").
-
-DevBridge is suggested as a stronger long-term brand name because it clearly communicates the core value proposition: bridging verified developers with international client work, without exposing developers to sales or client management overhead. The name is short, easy to say, and works well as a domain and product mark.
+**Observability Platform** — AI-Powered Cloud Infrastructure Monitoring & Automated Remediation Platform.
 
 ---
 
 ## 1.2 Product Vision
 
-DevBridge is **not a freelance marketplace**. It is a **private, invitation-and-approval based developer network**.
-
-Developers apply, go through a manual verification process, and once approved become part of a trusted delivery pool. Clients never see developer profiles and never contact developers directly. All client relationships, sales, contracts, and payments are owned entirely by the DevBridge team (the "Admin" side of the platform).
-
-The platform exists to remove every non-technical burden from a developer's life: finding clients, writing proposals, negotiating rates, chasing invoices, and managing client expectations. Developers are left free to do the one thing they are best at — **building software** — while DevBridge operates as their business layer.
+The Observability Platform is a unified, full-stack monitoring solution designed for cloud infrastructure, microservices, and containerized workloads. It integrates metrics collection, event stream tracking, log aggregation, machine learning anomaly detection, RAG-based runbook retrieval, and AI-driven automated root cause analysis into a single platform.
 
 ---
 
 ## 1.3 Problem Statement
 
-Independent developers with strong technical skills frequently fail to earn a sustainable income online — not because they cannot build software, but because running a freelance business requires an entirely different skill set. In practice this shows up as:
+DevOps engineers, Site Reliability Engineers (SREs), and system administrators face critical challenges managing modern distributed infrastructure:
 
-- Difficulty finding international clients willing to pay fair rates.
-- No experience with cold outreach, proposal writing, or sales calls.
-- Underpricing work or losing negotiations to more experienced sellers.
-- Payment delays, disputes, and collection problems with overseas clients.
-- No professional network or reputation system to build on over time.
-- Time lost on non-billable business administration instead of coding.
+- **Alert Fatigue**: Thousands of disjointed alerts from separate monitoring tools without root cause correlation.
+- **Delayed Incident Resolution (MTTR)**: High Mean Time To Resolution due to manual log searching across fragmented systems.
+- **Lack of Intelligent Context**: Raw metrics don't provide actionable remediation steps during critical outages.
+- **Manual Runbook Lookup**: SREs waste valuable time searching through static documentation while systems are down.
 
-**DevBridge solves this** by acting as the business front-end for a pool of verified developers: DevBridge finds and closes the client, DevBridge manages the relationship and quality bar, and the developer is simply assigned confirmed, paying work that matches their skills.
+**The Observability Platform solves this** by combining real-time Prometheus & Loki telemetry with ML-driven Isolation Forest anomaly detection, Qdrant vector retrieval for runbooks, and Google Gemini AI for automated incident diagnosis and remediation guidance.
 
 ---
 
@@ -37,23 +29,16 @@ Independent developers with strong technical skills frequently fail to earn a su
 
 | Persona | Description | Goals | Frustrations Today |
 |---|---|---|---|
-| **Aman, 26, Backend Developer** | 3 years of experience with Node.js and PostgreSQL, based outside a major tech hub, wants consistent international income. | Steady paid projects, fair pricing, no client-facing sales work. | Doesn't know how to find clients; underpriced on freelance sites; irregular income. |
-| **Priya, 31, Full-Stack Developer** | Freelances part-time alongside a full-time job, limited hours available per week. | Flexible, pre-vetted projects that fit around a day job. | No time to chase leads or negotiate; wants trusted, ready-to-start work. |
-| **Growthelpy Admin / Ops Manager** | Internal staff member who runs the platform: reviews developers, manages clients, assigns projects. | Fast developer vetting, clear project pipeline, accurate payment records. | Needs a single dashboard instead of spreadsheets and email threads. |
-| **International Client (off-platform)** | A business that wants software built but never logs into the developer-facing product. | Reliable delivery, single point of contact, predictable quality. | Not a direct user of MVP screens; interacts with DevBridge via email/calls outside the system. |
-
-> **Note:** The client is included here for context only. In MVP scope, the client does **not** log into any part of the system. All client-facing communication happens outside the product (email, calls) and is recorded into the system by the Admin.
+| **DevOps / SRE Engineer** | Manages cloud servers, Docker containers, and Kubernetes clusters. | Low MTTR, automated root-cause detection, actionable AI remediation insights. | Too many alerts; manual log correlation takes hours during outages. |
+| **System Administrator** | Responsible for node health, CPU/Memory usage, and server availability. | Real-time system dashboards, instant node failure notifications. | Scratched together monitoring tools with non-intuitive UIs. |
+| **Engineering Manager** | Oversees platform uptime, incident SLA compliance, and infrastructure costs. | High availability, clear incident reports, automated SRE workflows. | Lack of unified visibility across logs, metrics, and incident history. |
 
 ---
 
-## 1.5 Business Model Summary
+## 1.5 Architecture & Capability Summary
 
-- Developers join the network for **free**; there is no cost to apply or maintain a profile.
-- Developers submit a full profile (resume, portfolio, skills, GitHub/LinkedIn, availability) for **manual Admin review**.
-- Admin **approves, rejects, or requests changes** to each submitted profile.
-- DevBridge sources and closes international software projects **directly with clients** (outside the MVP system).
-- Admin creates each project inside the platform once a client has committed, including budget, tech stack, and timeline.
-- Approved developers can **browse open projects and apply**; Admin manually assigns the best-fit developer.
-- The assigned developer builds the project; DevBridge manages client communication and delivery.
-- Once a project is marked complete, Admin records the payment; the developer sees it reflected in their earnings history.
-- **No payment gateway, invoicing automation, or escrow system exists in MVP.** All payment records are manually entered by Admin.
+- **Agent Ingestion**: Lightweight monitoring agent tracking Docker Engine event streams and system telemetry.
+- **Metrics & Logs**: Prometheus integration for node/container metrics and Loki for centralized log aggregation.
+- **ML Anomaly Engine**: Scikit-learn Isolation Forest and rolling z-scores to filter noise and highlight anomalies.
+- **RAG & AI Assistant**: Qdrant vector store storing runbooks and system knowledge + Google Gemini API for intelligent incident triage.
+- **Modern UI**: Dark-themed Next.js + Tailwind CSS dashboard with real-time interactive charts powered by Recharts.
