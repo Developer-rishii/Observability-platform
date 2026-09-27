@@ -55,4 +55,3 @@ build/
 Thumbs.db
 
 # Project specific
-backend/alembic.ini

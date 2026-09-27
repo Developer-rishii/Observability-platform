@@ -22,6 +22,9 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+import os
+from fastapi.middleware.cors import CORSMiddleware
+
 @app.get("/")
 def root():
     return {"message": "Observability API is running"}
@@ -29,6 +32,14 @@ def root():
 @app.get(f"{settings.API_V1_STR}/health")
 def health_check():
     return {"status": "healthy"}
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Include routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
