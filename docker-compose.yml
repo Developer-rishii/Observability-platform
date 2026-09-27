@@ -34,6 +34,25 @@ services:
       - db
       - qdrant
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  workload-generator:
+    build:
+      context: ./infrastructure/workload-generator
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+
 volumes:
   postgres_data:
   qdrant_data:
+  prometheus_data:
