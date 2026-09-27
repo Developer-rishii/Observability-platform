@@ -96,7 +96,10 @@ Each person owns a full vertical slice: backend module + the frontend screens th
 **Shared / reviewed, not solely owned:**
 - **Database schema**: Rushikesh drafts; Sayali reviews any incident-table changes.
 - **`frontend/src/components/`** (shared design-system atoms): Pooja owns/reviews for consistency; Rushikesh and Sayali may add via PR.
-- **Cross-track contracts**: Any change to the `incident_context` JSON shape (Sayali's output, consumed by Pooja's prompt builder) or the Gemini response schema (Pooja's output, consumed by Sayali's correlation view and the frontend) **must be flagged to the consuming owner before merge**. These are the two boundaries most likely to drift silently.
+- **Cross-track contracts**:
+  - Any change to the `incident_context` JSON shape (Sayali's output, consumed by Pooja's prompt builder) **must be flagged to Pooja before merge**.
+  - Any change to the Gemini response JSON schema (Pooja's output, consumed by Sayali's correlation view and the frontend) **must be flagged to both Sayali and Rushikesh before merge**.
+  - These are the two boundaries most likely to drift silently.
 
 ---
 
