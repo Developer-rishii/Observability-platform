@@ -43,6 +43,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id = Column(Integer, primary_key=True, index=True)
+    client_event_id = Column(String(64), unique=True, nullable=True, index=True)
     server_id = Column(Integer, ForeignKey("servers.id"), nullable=True)
     event_type = Column(String(100), nullable=False)
     source = Column(String(100), nullable=False)
