@@ -11,15 +11,26 @@ from app.api.v1 import (
     alerts,
     ai,
     rag,
+    health,
 )
 
 setup_logging()
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.services.detection.scheduler import start_scheduler, stop_scheduler
+    start_scheduler()
+    yield
+    stop_scheduler()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 import os
@@ -51,3 +62,4 @@ app.include_router(incidents.router, prefix=f"{settings.API_V1_STR}/incidents", 
 app.include_router(alerts.router, prefix=f"{settings.API_V1_STR}/alerts", tags=["alerts"])
 app.include_router(ai.router, prefix=f"{settings.API_V1_STR}/ai", tags=["ai"])
 app.include_router(rag.router, prefix=f"{settings.API_V1_STR}/rag", tags=["rag"])
+app.include_router(health.router, prefix=f"{settings.API_V1_STR}/system", tags=["system"])
