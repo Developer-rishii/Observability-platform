@@ -141,6 +141,9 @@ class IncidentSchema(_Base):
     status: str    # candidate | open | investigating | resolved
     server_id: Optional[int] = None
     affected_service: Optional[str] = None
+    metric_name: str
+    metric_value: float
+    threshold: float
     anomaly_score: Optional[float] = None
     detected_at: datetime
     resolved_at: Optional[datetime] = None
