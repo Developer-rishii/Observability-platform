@@ -142,6 +142,7 @@ class TestIncidentSchema:
         inc = IncidentSchema(
             id=1, title="High CPU", severity="high", status="open",
             detected_at=NOW, affected_metrics=["cpu_pct"],
+            metric_name="cpu", metric_value=85.0, threshold=80.0,
         )
         keys = _camel_keys(inc)
         assert "detectedAt" in keys
@@ -150,8 +151,8 @@ class TestIncidentSchema:
         assert "affectedService" in keys
         assert "anomalyScore" in keys
         assert "resolvedAt" in keys
-        assert "windowStart" in keys
-        assert "windowEnd" in keys
+        assert "metricName" in keys
+        assert "metricValue" in keys
 
     def test_snake_input(self):
         inc = IncidentSchema(
@@ -159,6 +160,7 @@ class TestIncidentSchema:
             status="investigating", detected_at=NOW,
             affected_metrics=["disk_pct"],
             server_id=3,
+            metric_name="disk", metric_value=95.0, threshold=90.0,
         )
         assert inc.server_id == 3
 
@@ -172,6 +174,7 @@ class TestIncidentDetail:
         d = IncidentDetail(
             id=1, title="T", severity="low", status="candidate",
             detected_at=NOW, affected_metrics=[],
+            metric_name="cpu", metric_value=50.0, threshold=80.0,
         )
         assert d.metric_evidence == []
         assert d.logs == []
@@ -182,6 +185,7 @@ class TestIncidentDetail:
         d = IncidentDetail(
             id=1, title="T", severity="low", status="candidate",
             detected_at=NOW, affected_metrics=[],
+            metric_name="cpu", metric_value=50.0, threshold=80.0,
         )
         keys = _camel_keys(d)
         assert "metricEvidence" in keys

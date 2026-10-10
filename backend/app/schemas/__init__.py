@@ -158,6 +158,19 @@ class IncidentPatch(_Base):
 
 
 # ---------------------------------------------------------------------------
+# AI Root-Cause Analysis
+# ---------------------------------------------------------------------------
+
+class RCAOut(_Base):
+    """Structured response returned by POST /incidents/{id}/analyze."""
+    summary: str
+    probable_cause: str
+    confidence: str   # low | medium | high
+    next_steps: List[str]
+
+
+
+# ---------------------------------------------------------------------------
 # Logs / Events (stubs — Loki and Docker events agent are DEFERRED)
 # ---------------------------------------------------------------------------
 
