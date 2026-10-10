@@ -53,7 +53,7 @@ class Event(Base):
 
     server = relationship("Server", back_populates="events")
 
-from app.models.incident import Incident, Alert
+from app.models.incident import Incident, Alert  # noqa: F401 – registers tables with Base.metadata
 
 class IncidentEvent(Base):
     __tablename__ = "incident_events"
@@ -72,13 +72,28 @@ class IncidentLog(Base):
 
 
 class AIAnalysis(Base):
+    """Stored AI root-cause analysis for an incident.
+
+    Confidence values: low | medium | high
+    Status values    : success | unavailable
+    """
     __tablename__ = "ai_analyses"
 
     id = Column(Integer, primary_key=True, index=True)
     incident_id = Column(Integer, ForeignKey("incidents.id"), nullable=True)
-    prompt = Column(Text, nullable=False)
-    response = Column(Text, nullable=False)
+
+    # Legacy text fields kept for backward compat
+    prompt = Column(Text, nullable=True)
+    response = Column(Text, nullable=True)
+
+    # Phase-1 fields
+    model_used = Column(String(255), nullable=True)
+    response_json = Column(JSON, nullable=True)
+    confidence = Column(String(50), nullable=False, default="low")
+    status = Column(String(50), nullable=False, default="success")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    incident = relationship("Incident", back_populates="ai_analyses")
 
 class KnowledgeDocument(Base):
     __tablename__ = "knowledge_documents"

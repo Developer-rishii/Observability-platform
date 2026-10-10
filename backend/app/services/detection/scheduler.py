@@ -1,8 +1,10 @@
 from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
+from app.core.config import settings
 
-DETECTION_INTERVAL_SECONDS = 15
+DETECTION_INTERVAL_SECONDS = settings.DETECTION_INTERVAL_SECONDS
 JOB_ID = "detection_job"
+
 
 scheduler: Optional[BackgroundScheduler] = None
 

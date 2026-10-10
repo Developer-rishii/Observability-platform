@@ -1,95 +1,183 @@
 # Database Design
 
 ## Overview
-This document outlines the database schema for the Observability Platform, built on PostgreSQL using SQLAlchemy.
+This document outlines the database schema for the Observability Platform, built on PostgreSQL using SQLAlchemy 2 and managed by Alembic.
+
+**Current migration head:** `0002_phase1_model_reconciliation`
+
+---
 
 ## Tables
 
 ### `users`
-- `id`: Integer (PK)
-- `email`: String (Unique, Index)
-- `hashed_password`: String
-- `full_name`: String
-- `is_active`: Boolean
-- `is_admin`: Boolean
-- `created_at`: DateTime
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `email` | String(255) unique | |
+| `hashed_password` | String(255) | bcrypt |
+| `full_name` | String(255) nullable | |
+| `is_active` | Boolean | default true |
+| `is_admin` | Boolean | default false |
+| `created_at` | DateTime | |
+
+---
 
 ### `servers`
-- `id`: Integer (PK)
-- `hostname`: String (Unique, Index)
-- `ip_address`: String
-- `os_info`: String
-- `status`: String (active)
-- `created_at`: DateTime
-- **Relationships**: One-to-Many with `services` and `events`.
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `hostname` | String(255) unique | |
+| `ip_address` | String(45) | |
+| `os_info` | String(255) nullable | |
+| `status` | String(50) | active \| degraded \| offline |
+| `created_at` | DateTime | |
+
+Relationships: one-to-many with `services`, `events`, `incidents`.
+
+---
 
 ### `services`
-- `id`: Integer (PK)
-- `server_id`: Integer (FK -> `servers.id`)
-- `name`: String
-- `service_type`: String
-- `status`: String (running)
-- `created_at`: DateTime
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `server_id` | Integer FK → `servers.id` | |
+| `name` | String(255) | |
+| `service_type` | String(100) nullable | |
+| `status` | String(50) | default running |
+| `created_at` | DateTime | |
+
+---
 
 ### `events`
-- `id`: Integer (PK)
-- `client_event_id`: String (Unique, Index) - Agent-generated ID for deduplication.
-- `server_id`: Integer (FK -> `servers.id`)
-- `event_type`: String
-- `source`: String
-- `severity`: String (info)
-- `payload`: JSON
-- `timestamp`: DateTime
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `client_event_id` | String(64) unique nullable | agent-side idempotency key |
+| `server_id` | Integer FK → `servers.id` nullable | |
+| `event_type` | String(100) | |
+| `source` | String(100) | |
+| `severity` | String(50) | default info |
+| `payload` | JSON nullable | |
+| `timestamp` | DateTime | |
+
+---
 
 ### `incidents`
-- `id`: Integer (PK)
-- `title`: String
-- `description`: Text
-- `severity`: String (medium)
-- `status`: String (open, investigating, resolved)
-- `created_at`: DateTime
-- `resolved_at`: DateTime
+Single source of truth in `backend/app/models/incident.py`.
 
-### `incident_events`
-- `id`: Integer (PK)
-- `incident_id`: Integer (FK -> `incidents.id`)
-- `event_id`: Integer (FK -> `events.id`)
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `title` | String(255) | default "Untitled Incident" |
+| `description` | Text nullable | |
+| `severity` | String(50) | **critical \| high \| medium \| low \| info** |
+| `status` | String(50) | **candidate \| open \| investigating \| resolved** |
+| `server_id` | Integer FK → `servers.id` nullable | |
+| `affected_service` | String(255) nullable | |
+| `metric_name` | String(255) | triggering metric |
+| `metric_value` | Float | value at detection time |
+| `threshold` | Float | configured threshold |
+| `anomaly_score` | Float nullable | |
+| `detected_at` | DateTime | renamed from `triggered_at` (migration 0002) |
+| `resolved_at` | DateTime nullable | stamped when status → resolved |
+| `window_start` | DateTime nullable | evidence window start |
+| `window_end` | DateTime nullable | evidence window end |
+| `affected_metrics` | JSON | list of metric name strings; default [] |
 
-### `incident_logs`
-- `id`: Integer (PK)
-- `incident_id`: Integer (FK -> `incidents.id`)
-- `log_line`: Text
-- `timestamp`: DateTime
+Relationships: one-to-many with `alerts`, `ai_analyses`.
+
+---
 
 ### `alerts`
-- `id`: Integer (PK)
-- `rule_name`: String
-- `metric_name`: String
-- `threshold`: Float
-- `status`: String (firing)
-- `triggered_at`: DateTime
+Linked to an `Incident`. Defined in `backend/app/models/incident.py`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `incident_id` | Integer FK → `incidents.id` | |
+| `rule_name` | String(255) | e.g. "cpu_threshold" |
+| `metric_name` | String(255) | |
+| `threshold` | Float | |
+| `value` | Float nullable | observed value at trigger |
+| `status` | String(50) | **firing \| acknowledged \| resolved** |
+| `triggered_at` | DateTime nullable | |
+| `message` | Text nullable | legacy field |
+| `created_at` | DateTime | |
+
+---
+
+### `incident_events`
+Join table linking `incidents` to raw `events`.
+
+| Column | Type |
+|---|---|
+| `id` | Integer PK |
+| `incident_id` | FK → `incidents.id` |
+| `event_id` | FK → `events.id` |
+
+---
+
+### `incident_logs`
+| Column | Type |
+|---|---|
+| `id` | Integer PK |
+| `incident_id` | FK → `incidents.id` |
+| `log_line` | Text |
+| `timestamp` | DateTime |
+
+> **Note:** Loki integration is **DEFERRED**. This table is a placeholder.
+
+---
 
 ### `ai_analyses`
-- `id`: Integer (PK)
-- `incident_id`: Integer (FK -> `incidents.id`)
-- `prompt`: Text
-- `response`: Text
-- `created_at`: DateTime
+Defined in `backend/app/models/models.py`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `incident_id` | Integer FK → `incidents.id` nullable | |
+| `model_used` | String(255) nullable | e.g. "gemini-1.5-pro" |
+| `response_json` | JSON nullable | validated RcaResult structure |
+| `confidence` | String(50) | **low \| medium \| high** |
+| `status` | String(50) | **success \| unavailable** |
+| `created_at` | DateTime | |
+| `prompt` | Text nullable | legacy field |
+| `response` | Text nullable | legacy field |
+
+---
 
 ### `knowledge_documents`
-- `id`: Integer (PK)
-- `title`: String
-- `content`: Text
-- `vector_id`: String
-- `created_at`: DateTime
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer PK | |
+| `title` | String(255) | |
+| `content` | Text | |
+| `vector_id` | String(255) nullable | Qdrant point ID |
+| `created_at` | DateTime | |
+
+> **Note:** RAG / Qdrant ingestion is **DEFERRED**.
+
+---
 
 ### `system_configurations`
-- `id`: Integer (PK)
-- `key`: String (Unique, Index)
-- `value`: Text
-- `updated_at`: DateTime
+| Column | Type |
+|---|---|
+| `id` | Integer PK |
+| `key` | String(255) unique |
+| `value` | Text |
+| `updated_at` | DateTime |
 
-## Relationships
-- **Servers** have many **Services** and **Events**.
-- **Incidents** link to multiple **Events** via the `incident_events` join table, and to multiple **IncidentLogs**.
-- **Incidents** can also have associated **AIAnalyses**.
+---
+
+## Relationships Summary
+- **Servers** → many **Services**, many **Events**, many **Incidents** (via `server_id`)
+- **Incidents** → many **Alerts**, many **AIAnalyses**, many **Events** (via `incident_events`)
+- **Incidents** → many **IncidentLogs**
+
+## Migration History
+| Revision | Description |
+|---|---|
+| `0001_initial_schema` | Initial tables: users, servers, services, events, incidents, alerts, ai_analyses, knowledge_documents, system_configurations |
+| `41cfb96dbef2` | Add `client_event_id` to events |
+| `407e38f80230` | Reshape incidents and alerts to match detection schema |
+| `0002_phase1_model_reconciliation` | **Phase 1**: rename `triggered_at` → `detected_at`; add title, description, server_id, affected_service, anomaly_score, window_start, window_end, affected_metrics to incidents; restore and extend alerts; extend ai_analyses |
