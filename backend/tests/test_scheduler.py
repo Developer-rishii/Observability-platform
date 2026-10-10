@@ -46,7 +46,11 @@ def test_job_executes_at_least_once_within_20_seconds():
 
     A deterministic threading.Event is triggered via APScheduler's
     EVENT_JOB_EXECUTED listener when the 15-second job runs.
+    The Prometheus client and DB session are mocked so this works without
+    a live Prometheus instance.
     """
+    from unittest.mock import patch, MagicMock
+
     sched = get_scheduler()
     job_executed = threading.Event()
     execution_counter = 0
@@ -58,14 +62,28 @@ def test_job_executes_at_least_once_within_20_seconds():
             job_executed.set()
 
     sched.add_listener(on_job_executed, EVENT_JOB_EXECUTED)
-    try:
-        start_scheduler()
-        assert sched.running is True
 
-        # Wait up to 20 seconds for the 15-second interval job to fire
-        fired = job_executed.wait(timeout=20)
-        assert fired is True, "Expected detection job to fire at least once within 20 seconds"
-        assert execution_counter >= 1, "Execution counter should be at least 1"
+    mock_db = MagicMock()
+    mock_session_cls = MagicMock(return_value=mock_db)
+
+    try:
+        with (
+            patch(
+                "app.services.ingestion.prometheus_client.query_range",
+                return_value=[],  # no data → no incident created
+            ),
+            patch(
+                "app.core.database.SessionLocal",
+                mock_session_cls,
+            ),
+        ):
+            start_scheduler()
+            assert sched.running is True
+
+            # Wait up to 20 seconds for the 15-second interval job to fire
+            fired = job_executed.wait(timeout=20)
+            assert fired is True, "Expected detection job to fire at least once within 20 seconds"
+            assert execution_counter >= 1, "Execution counter should be at least 1"
     finally:
         sched.remove_listener(on_job_executed)
         stop_scheduler(wait=False)
