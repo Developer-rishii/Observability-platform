@@ -4,15 +4,54 @@ from datetime import datetime
 from app.core.config import settings
 
 def _get_query_for_metric(metric: str) -> str:
-    """Map frontend metric names to actual PromQL queries."""
+    """Map telemetry metric names to genuine node_exporter PromQL queries with workload fallback."""
     if metric == "cpu":
-        # Simulating CPU % from the workload generator's CPU gauge or similar
-        return "rate(process_cpu_seconds_total[1m]) * 100"
+        # Live host CPU usage percent from node_exporter
+        return '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)'
     elif metric == "memory":
-        return "process_resident_memory_bytes / 1024 / 1024"
+        # Live host memory usage percent from node_exporter
+        return '(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'
+    elif metric == "disk":
+        # Live host disk usage percent from primary ext4/root filesystem
+        return '100 - (node_filesystem_avail_bytes{mountpoint="/mnt"} / node_filesystem_size_bytes{mountpoint="/mnt"} * 100)'
+    elif metric in ("network", "network_ingress"):
+        # Live network ingress rate in MB/s (excluding loopback)
+        return 'sum(rate(node_network_receive_bytes_total{device!~"lo|veth.*"}[1m])) / 1024 / 1024'
+    elif metric == "network_egress":
+        # Live network egress rate in MB/s (excluding loopback)
+        return 'sum(rate(node_network_transmit_bytes_total{device!~"lo|veth.*"}[1m])) / 1024 / 1024'
+    elif metric == "uptime":
+        # Host uptime in seconds
+        return 'node_time_seconds - node_boot_time_seconds'
+    elif metric == "load":
+        # 1-minute load average
+        return 'node_load1'
+    elif metric == "container_count":
+        # Number of live containers monitored by cAdvisor
+        return 'count(container_last_seen)'
     else:
-        # fallback, just return the metric
         return metric
+
+def query_instant(query_or_metric: str) -> float | None:
+    """
+    Execute an instant PromQL query or mapped metric name and return the float scalar/latest value.
+    Returns None if no data is found or query fails.
+    """
+    prom_url = settings.PROMETHEUS_URL.rstrip('/')
+    url = f"{prom_url}/api/v1/query"
+    query = _get_query_for_metric(query_or_metric)
+    try:
+        resp = requests.get(url, params={"query": query}, timeout=4.0)
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("data", {}).get("result", [])
+        if not results:
+            return None
+        val_str = results[0].get("value", [None, None])[1]
+        return float(val_str) if val_str is not None else None
+    except Exception as e:
+        print(f"Prometheus query_instant error ({query_or_metric}): {e}")
+        return None
 
 def query_range(metric: str, minutes: int) -> list[dict]:
     """

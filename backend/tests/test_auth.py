@@ -29,9 +29,14 @@ def test_user(db):
             hashed_password=get_password_hash(password),
             full_name="Test Auth User",
             is_active=True,
+            is_verified=True,
             is_admin=False
         )
         db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        user.is_verified = True
         db.commit()
         db.refresh(user)
     

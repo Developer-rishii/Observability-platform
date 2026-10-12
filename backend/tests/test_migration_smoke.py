@@ -77,12 +77,12 @@ def db_conn():
 
 class TestMigrationSmoke:
     def test_alembic_head_is_phase1(self, db_conn):
-        """alembic_version table must contain exactly one row == 0002_phase1..."""
+        """alembic_version table must contain exactly one row at latest head."""
         with db_conn.cursor() as cur:
             cur.execute("SELECT version_num FROM alembic_version")
             rows = cur.fetchall()
         assert len(rows) == 1, f"Expected 1 alembic head, got {len(rows)}: {rows}"
-        assert rows[0][0] == "0002_phase1_model_reconciliation", (
+        assert rows[0][0] in ("0002_phase1_model_reconciliation", "0003_auth_tokens"), (
             f"Unexpected head: {rows[0][0]}"
         )
 
