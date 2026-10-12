@@ -80,3 +80,21 @@ def test_get_incident(setup_incidents):
 def test_get_incident_not_found():
     response = client.get("/api/v1/incidents/999999")
     assert response.status_code == 404
+
+def test_patch_incident_status(setup_incidents):
+    open_inc = setup_incidents["open"]
+    # open -> investigating
+    resp = client.patch(f"/api/v1/incidents/{open_inc.id}/status", json={"status": "investigating"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "investigating"
+
+    # investigating -> resolved
+    resp2 = client.patch(f"/api/v1/incidents/{open_inc.id}/status", json={"status": "resolved"})
+    assert resp2.status_code == 200
+    assert resp2.json()["status"] == "resolved"
+    assert resp2.json().get("resolvedAt") is not None
+
+    # resolved -> open (invalid transition)
+    resp3 = client.patch(f"/api/v1/incidents/{open_inc.id}/status", json={"status": "open"})
+    assert resp3.status_code == 422
+

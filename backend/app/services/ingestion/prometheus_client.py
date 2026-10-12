@@ -70,3 +70,27 @@ def check_health() -> bool:
         return resp.status_code == 200
     except:
         return False
+
+def get_targets() -> list[dict]:
+    """Fetch active targets and their health status from Prometheus."""
+    prom_url = settings.PROMETHEUS_URL.rstrip('/')
+    url = f"{prom_url}/api/v1/targets"
+    try:
+        resp = requests.get(url, timeout=3.0)
+        resp.raise_for_status()
+        data = resp.json()
+        active = data.get("data", {}).get("activeTargets", [])
+        targets = []
+        for t in active:
+            targets.append({
+                "job": t.get("labels", {}).get("job", "unknown"),
+                "instance": t.get("labels", {}).get("instance", "unknown"),
+                "health": t.get("health", "unknown"),
+                "last_scrape": t.get("lastScrape"),
+                "last_error": t.get("lastError", ""),
+            })
+        return targets
+    except Exception as e:
+        print(f"Failed to query Prometheus targets: {e}")
+        return []
+
