@@ -15,17 +15,25 @@ _VALID_TRANSITIONS = {
     "resolved": set(),  # terminal
 }
 
+@router.get("", response_model=Envelope[IncidentSchema])
 @router.get("/", response_model=Envelope[IncidentSchema])
 def list_incidents(
     status: Optional[str] = None,
+    severity: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db)
 ):
-    """List incidents, optionally filtered by status."""
+    """List incidents, optionally filtered by status and severity."""
     query = db.query(Incident)
-    if status:
+    if status and status != "all":
         query = query.filter(Incident.status == status)
-    incidents = query.order_by(Incident.detected_at.desc()).all()
-    return Envelope(items=incidents, total=len(incidents), limit=100, offset=0)
+    if severity and severity != "all":
+        query = query.filter(Incident.severity == severity)
+    
+    total = query.count()
+    incidents = query.order_by(Incident.detected_at.desc()).offset(offset).limit(limit).all()
+    return Envelope(items=incidents, total=total, limit=limit, offset=offset)
 
 @router.get("/{incident_id}", response_model=IncidentSchema)
 def get_incident(incident_id: int, db: Session = Depends(get_db)):

@@ -1,23 +1,146 @@
 :root {
-  --color-primary: #3b82f6;
-  --color-secondary: #10b981;
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-text: #f8fafc;
-  --color-text-muted: #94a3b8;
-  
+  /* Surfaces & Backgrounds */
+  --color-bg-base: #070b12;
+  --color-bg-elevated: #0b1120;
+  --color-bg-surface: #10172a;
+  --color-bg-surface-hover: #17223b;
+  --color-bg-surface-active: #1e2c4d;
+  --color-bg-card: rgba(16, 23, 42, 0.78);
+  --color-bg-glass: rgba(11, 17, 32, 0.88);
+  --color-bg-overlay: rgba(3, 7, 18, 0.75);
+
+  /* Primary Accent & Brand (Electric Cyan & Cyber Violet) */
+  --color-primary: #06b6d4;
+  --color-primary-hover: #22d3ee;
+  --color-primary-glow: rgba(6, 182, 212, 0.25);
+  --color-primary-subtle: rgba(6, 182, 212, 0.12);
+
+  --color-accent: #8b5cf6;
+  --color-accent-hover: #a78bfa;
+  --color-accent-glow: rgba(139, 92, 246, 0.25);
+  --color-accent-subtle: rgba(139, 92, 246, 0.12);
+
+  /* Semantic Status Palette */
+  --color-status-healthy: #10b981;
+  --color-status-healthy-bg: rgba(16, 185, 129, 0.12);
+  --color-status-healthy-border: rgba(16, 185, 129, 0.3);
+
+  --color-status-warning: #f59e0b;
+  --color-status-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-status-warning-border: rgba(245, 158, 11, 0.3);
+
+  --color-status-critical: #ef4444;
+  --color-status-critical-bg: rgba(239, 68, 68, 0.15);
+  --color-status-critical-border: rgba(239, 68, 68, 0.35);
+
+  --color-status-info: #3b82f6;
+  --color-status-info-bg: rgba(59, 130, 246, 0.12);
+  --color-status-info-border: rgba(59, 130, 246, 0.3);
+
+  --color-status-neutral: #64748b;
+  --color-status-neutral-bg: rgba(100, 116, 139, 0.14);
+  --color-status-neutral-border: rgba(100, 116, 139, 0.3);
+
+  /* Text & Typography */
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #020617;
+
+  /* Borders & Dividers */
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-default: rgba(255, 255, 255, 0.14);
+  --color-border-focused: rgba(6, 182, 212, 0.6);
+
+  /* Chart Colors */
+  --chart-cyan: #06b6d4;
+  --chart-violet: #8b5cf6;
+  --chart-emerald: #10b981;
+  --chart-amber: #f59e0b;
+  --chart-rose: #f43f5e;
+  --chart-blue: #3b82f6;
+
+  /* Typography Scales */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+
+  /* Spacing */
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
   --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows & Glows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+  --shadow-glow-cyan: 0 0 20px -3px rgba(6, 182, 212, 0.35);
+  --shadow-glow-violet: 0 0 20px -3px rgba(139, 92, 246, 0.35);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 350ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body {
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
   padding: 0;
-  background-color: var(--color-background);
-  color: var(--color-text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+/* Accessible focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-bg-surface-hover);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
 }

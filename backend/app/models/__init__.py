@@ -9,6 +9,8 @@ from app.models.models import (
     AIAnalysis,
     KnowledgeDocument,
     SystemConfiguration,
+    VerificationToken,
+    PasswordResetToken,
 )
 
 __all__ = [
@@ -23,4 +25,6 @@ __all__ = [
     "AIAnalysis",
     "KnowledgeDocument",
     "SystemConfiguration",
+    "VerificationToken",
+    "PasswordResetToken",
 ]

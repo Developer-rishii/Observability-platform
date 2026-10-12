@@ -16,10 +16,11 @@ def detection_job():
     from app.repositories.incident_repository import get_open_incident_for_metric, create_incident
     from app.core.database import SessionLocal
     
-    # We will check CPU and memory
+    # We will check CPU, memory, and disk
     metrics_to_check = [
         ("cpu", settings.CPU_THRESHOLD_PCT),
-        ("memory", settings.MEM_THRESHOLD_PCT)
+        ("memory", settings.MEM_THRESHOLD_PCT),
+        ("disk", settings.DISK_THRESHOLD_PCT),
     ]
     
     db = SessionLocal()
