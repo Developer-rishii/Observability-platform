@@ -34,6 +34,18 @@ jobs:
           cd backend
           python -m py_compile app/main.py
 
+      - name: Run Tests
+        env:
+          DATABASE_URL: sqlite:///:memory:
+          JWT_SECRET: ci-test-fake-jwt-secret-not-for-prod
+          AGENT_SHARED_SECRET: ci-test-fake-agent-secret
+          FRONTEND_ORIGIN: http://localhost:5173
+          GEMINI_API_KEY: fake-gemini-key
+          SMTP_PASSWORD: fake-smtp-password
+        run: |
+          cd backend
+          pytest
+
   frontend:
     name: Frontend CI
     runs-on: ubuntu-latest
