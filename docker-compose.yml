@@ -72,12 +72,17 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
 
-  workload-generator:
+  demo-app:
     build:
       context: ./infrastructure/workload-generator
       dockerfile: Dockerfile
     ports:
       - "${WORKLOAD_HOST_PORT:-8081}:8080"
+    networks:
+      default:
+        aliases:
+          - demo-app
+          - workload-generator
 
 volumes:
   postgres_data:
