@@ -798,9 +798,14 @@ export const IncidentsList: React.FC = () => {
         <Card style={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#ffffff' }}>
-                Operational Alert Policies & Threshold Rules
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#ffffff' }}>
+                  Operational Alert Policies & Threshold Rules
+                </h3>
+                <span style={{ fontSize: '0.6875rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                  Demo Data
+                </span>
+              </div>
               <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
                 Production detection rules evaluated on continuous 15s intervals via Prometheus time-series engines.
               </p>

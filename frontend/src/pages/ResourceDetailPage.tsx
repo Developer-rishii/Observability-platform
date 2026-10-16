@@ -301,8 +301,8 @@ export const ResourceDetailPage: React.FC = () => {
                 </h1>
                 {resource && getStatusBadge(resource.status)}
                 {resource?.isSampleData && (
-                  <span style={{ fontSize: '0.6875rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--color-text-muted)' }}>
-                    Sample Inventory
+                  <span style={{ fontSize: '0.6875rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                    Demo Data
                   </span>
                 )}
               </div>
