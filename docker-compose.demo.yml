@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  traffic-generator:
+    build:
+      context: ./infrastructure/traffic-generator
+      dockerfile: Dockerfile
+    container_name: traffic-generator
+    environment:
+      - TARGET_URL=${TARGET_URL:-http://demo-app:8080}
+      - REQUESTS_PER_SECOND=${REQUESTS_PER_SECOND:-5}
+    restart: unless-stopped
+    labels:
+      - "monitor=true"
