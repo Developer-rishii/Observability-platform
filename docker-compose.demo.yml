@@ -1,6 +1,44 @@
 version: '3.8'
 
 services:
+  demo-db:
+    image: postgres:15
+    container_name: demo-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DEMO_DB_USER:-demouser}
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:-demopassword}
+      POSTGRES_DB: ${DEMO_DB_NAME:-demodb}
+    ports:
+      - "${DEMO_DB_HOST_PORT:-5434}:5432"
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEMO_DB_USER:-demouser} -d ${DEMO_DB_NAME:-demodb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  demo-app:
+    container_name: demo-app
+    restart: unless-stopped
+    labels:
+      - "monitor=true"
+    environment:
+      - DEMO_DB_HOST=demo-db
+      - DEMO_DB_PORT=5432
+      - DEMO_DB_USER=${DEMO_DB_USER:-demouser}
+      - DEMO_DB_PASSWORD=${DEMO_DB_PASSWORD:-demopassword}
+      - DEMO_DB_NAME=${DEMO_DB_NAME:-demodb}
+      - DEMO_DB_URL=postgresql://${DEMO_DB_USER:-demouser}:${DEMO_DB_PASSWORD:-demopassword}@demo-db:5432/${DEMO_DB_NAME:-demodb}
+      - FAULT_TOKEN=${FAULT_TOKEN:-demo-fault-secret-key}
+      - DEMO_DATA_DIR=/data/fill
+    volumes:
+      - demo_app_data:/data/fill
+    depends_on:
+      demo-db:
+        condition: service_healthy
+
   traffic-generator:
     build:
       context: ./infrastructure/traffic-generator
@@ -12,3 +50,7 @@ services:
     restart: unless-stopped
     labels:
       - "monitor=true"
+
+volumes:
+  demo_postgres_data:
+  demo_app_data:

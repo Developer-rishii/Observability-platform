@@ -16,7 +16,6 @@ scrape_configs:
       - target_label: instance
         replacement: 'docker-containers'
 
-  - job_name: 'workload-generator'
+  - job_name: 'demo-app'
     static_configs:
-      - targets: ['workload-generator:8080']
-
+      - targets: ['demo-app:8080']
