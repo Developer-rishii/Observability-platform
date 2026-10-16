@@ -75,6 +75,22 @@ class ServerSchema(_Base):
     container_count: Optional[int] = None
 
 
+class ServerCreate(_Base):
+    hostname: str
+    ip_address: str
+    os_info: Optional[str] = "Linux"
+    environment: Optional[str] = "production"
+    capabilities: Optional[List[str]] = ["metrics", "logs", "events"]
+
+
+class ServerRegistrationResponse(_Base):
+    server: ServerSchema
+    enrollment_token: str
+    install_command: str
+    instructions: str
+
+
+
 class ContainerSchema(_Base):
     id: str
     name: str
@@ -161,13 +177,26 @@ class IncidentPatch(_Base):
 # AI Root-Cause Analysis
 # ---------------------------------------------------------------------------
 
+class EvidenceItem(_Base):
+    """A single piece of supporting evidence."""
+    text: str
+    ref: Optional[Any] = None
+
+
 class RCAOut(_Base):
     """Structured response returned by POST /incidents/{id}/analyze."""
     summary: str
     probable_cause: str
     confidence: str   # low | medium | high
-    next_steps: List[str]
-
+    # Richer fields (provided when the LLM returns the full schema)
+    supporting_evidence: List[EvidenceItem] = []
+    affected_components: List[str] = []
+    impact: str = ""
+    recommended_investigation: List[str] = []
+    possible_remediation: List[str] = []
+    alternative_causes: List[str] = []
+    # Backwards-compat: old prompt returned next_steps
+    next_steps: List[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -253,3 +282,26 @@ class TokenResponse(_Base):
     access_token: str
     token_type: str = "bearer"
     user: UserSchema
+
+
+class RegisterRequest(_Base):
+    email: str
+    password: str
+    full_name: Optional[str] = None
+
+
+class VerifyEmailRequest(_Base):
+    token: str
+
+
+class ForgotPasswordRequest(_Base):
+    email: str
+
+
+class ResetPasswordRequest(_Base):
+    token: str
+    new_password: str
+
+
+class MessageResponse(_Base):
+    message: str

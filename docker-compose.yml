@@ -26,14 +26,24 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/observability}
+      - DATABASE_URL=postgresql://user:password@db:5432/observability
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - JWT_SECRET=${JWT_SECRET:-change-me}
       - JWT_EXPIRY_MINUTES=${JWT_EXPIRY_MINUTES:-1440}
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:5173}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:8000}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-CHANGE_ME_BEFORE_SEEDING}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-rushikeshsawarkar14@gmail.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-adql nbjf rcrz pitx}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-rushikeshsawarkar14@gmail.com}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-AetherPulse Cloud Observability}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
       - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
+      - LOKI_URL=${LOKI_URL:-http://host.docker.internal:3100}
       - DETECTION_INTERVAL_SECONDS=${DETECTION_INTERVAL_SECONDS:-15}
       - DETECTION_CONSECUTIVE_BREACHES=${DETECTION_CONSECUTIVE_BREACHES:-3}
       - DETECTION_RECOVERY_CHECKS=${DETECTION_RECOVERY_CHECKS:-3}
@@ -44,6 +54,8 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-pro}
       - LLM_TIMEOUT_SECONDS=${LLM_TIMEOUT_SECONDS:-30}
       - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET:-supersecretagentkey123}
+    volumes:
+      - ./backend:/app
     depends_on:
       - db
       - qdrant
@@ -60,12 +72,17 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
 
-  workload-generator:
+  demo-app:
     build:
       context: ./infrastructure/workload-generator
       dockerfile: Dockerfile
     ports:
       - "${WORKLOAD_HOST_PORT:-8081}:8080"
+    networks:
+      default:
+        aliases:
+          - demo-app
+          - workload-generator
 
 volumes:
   postgres_data:

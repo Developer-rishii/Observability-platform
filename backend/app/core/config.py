@@ -16,15 +16,28 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/observability"
 
     # ------------------------------------------------------------------ #
-    # Auth                                                                 #
+    # Auth & Frontend URLs                                                 #
     # ------------------------------------------------------------------ #
     JWT_SECRET: str = "change-me"
     JWT_EXPIRY_MINUTES: int = 1440
-    FRONTEND_ORIGIN: str = "http://localhost:3000"
+    FRONTEND_ORIGIN: str = "http://localhost:5173"
+    FRONTEND_URL: str = "http://localhost:5173"
+    BACKEND_URL: str = "http://localhost:8000"
 
     # Admin seed (used by scripts/seed_admin.py only)
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str = "CHANGE_ME_BEFORE_SEEDING"
+
+    # ------------------------------------------------------------------ #
+    # Email / SMTP                                                         #
+    # ------------------------------------------------------------------ #
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@aetherpulse.io"
+    SMTP_FROM_NAME: str = "AetherPulse Cloud Observability"
+    SMTP_USE_TLS: bool = True
 
     # ------------------------------------------------------------------ #
     # Prometheus                                                           #
@@ -53,7 +66,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     # Legacy / other services                                              #
     # ------------------------------------------------------------------ #
-    LOKI_URL: str = "http://loki:3100"
+    LOKI_URL: str = "http://host.docker.internal:3100"
     AGENT_SHARED_SECRET: str = "supersecretagentkey123"
     MODEL_PATH: str = "/models/isolation_forest.pkl"
     ANOMALY_THRESHOLD: float = 0.95

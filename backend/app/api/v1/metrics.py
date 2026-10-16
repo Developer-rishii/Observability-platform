@@ -23,11 +23,16 @@ def get_metrics_query(
     points = [MetricPoint(t=p["t"], v=p["v"]) for p in points_data]
     
     # Default metadata based on metric type
-    unit = "%" if metric == "cpu" else "MB"
-    label = "CPU Usage" if metric == "cpu" else "Memory Usage"
-    
-    from app.core.config import settings
-    threshold = settings.CPU_THRESHOLD_PCT if metric == "cpu" else settings.MEM_THRESHOLD_PCT
+    metadata_map = {
+        "cpu": ("%", "Host CPU Utilization", settings.CPU_THRESHOLD_PCT),
+        "memory": ("%", "Host Memory Utilization", settings.MEM_THRESHOLD_PCT),
+        "disk": ("%", "Host Disk Storage Usage", settings.DISK_THRESHOLD_PCT),
+        "network": ("MB/s", "Host Network Throughput", 100.0),
+    }
+    unit, label, threshold = metadata_map.get(
+        metric, 
+        ("%", f"{metric.upper()} Telemetry", settings.CPU_THRESHOLD_PCT)
+    )
     
     return MetricSeries(
         metric=metric,
