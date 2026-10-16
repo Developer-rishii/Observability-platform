@@ -39,6 +39,18 @@ services:
       demo-db:
         condition: service_healthy
 
+  traffic-generator:
+    build:
+      context: ./infrastructure/traffic-generator
+      dockerfile: Dockerfile
+    container_name: traffic-generator
+    environment:
+      - TARGET_URL=${TARGET_URL:-http://demo-app:8080}
+      - REQUESTS_PER_SECOND=${REQUESTS_PER_SECOND:-5}
+    restart: unless-stopped
+    labels:
+      - "monitor=true"
+
 volumes:
   demo_postgres_data:
   demo_app_data:
