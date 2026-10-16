@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,10 +52,24 @@ class Settings(BaseSettings):
     DETECTION_CONSECUTIVE_BREACHES: int = 3
     DETECTION_RECOVERY_CHECKS: int = 3
 
-    # Default metric thresholds (percent)
+    # Default metric thresholds
     CPU_THRESHOLD_PCT: float = 80.0
     MEM_THRESHOLD_PCT: float = 85.0
     DISK_THRESHOLD_PCT: float = 90.0
+    LATENCY_P95_THRESHOLD_SECONDS: float = 0.5  # 500ms
+    ERROR_RATE_THRESHOLD_PCT: float = 5.0       # 5%
+    # Container restart threshold: default is 1, meaning a breach occurs when container
+    # restart count strictly exceeds 1 (> 1 restarts in observation window).
+    CONTAINER_RESTART_THRESHOLD: int = 1
+    CONTAINER_RESTART_WINDOW_MINUTES: int = 15  # 15 minutes window
+    DEMO_DATA_DIR_BYTES_THRESHOLD: float = 104857600.0  # 100 MB in bytes
+
+    @field_validator("DETECTION_CONSECUTIVE_BREACHES", "DETECTION_RECOVERY_CHECKS", "DETECTION_INTERVAL_SECONDS")
+    @classmethod
+    def validate_positive_int(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("Detection check counts and intervals must be at least 1.")
+        return v
 
     # ------------------------------------------------------------------ #
     # AI / Gemini                                                          #
