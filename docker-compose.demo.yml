@@ -39,6 +39,22 @@ services:
       demo-db:
         condition: service_healthy
 
+  node-exporter:
+    image: prom/node-exporter:v1.6.0
+    container_name: demo-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
 volumes:
   demo_postgres_data:
   demo_app_data:

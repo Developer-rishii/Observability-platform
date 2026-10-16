@@ -3,8 +3,12 @@ import requests
 from datetime import datetime
 from app.core.config import settings
 
+class PrometheusUnavailableException(Exception):
+    """Raised when Prometheus server cannot be reached."""
+    pass
+
 def _get_query_for_metric(metric: str) -> str:
-    """Map telemetry metric names to genuine node_exporter PromQL queries with workload fallback."""
+    """Map telemetry metric names to genuine node_exporter and demo-app PromQL queries."""
     if metric == "cpu":
         # Live host CPU usage percent from node_exporter
         return '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)'
@@ -12,8 +16,8 @@ def _get_query_for_metric(metric: str) -> str:
         # Live host memory usage percent from node_exporter
         return '(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'
     elif metric == "disk":
-        # Live host disk usage percent from primary ext4/root filesystem
-        return '100 - (node_filesystem_avail_bytes{mountpoint="/mnt"} / node_filesystem_size_bytes{mountpoint="/mnt"} * 100)'
+        # Live host disk usage percent from root or host mounted filesystem
+        return '100 - (node_filesystem_avail_bytes{mountpoint="/rootfs"} / node_filesystem_size_bytes{mountpoint="/rootfs"} * 100)'
     elif metric in ("network", "network_ingress"):
         # Live network ingress rate in MB/s (excluding loopback)
         return 'sum(rate(node_network_receive_bytes_total{device!~"lo|veth.*"}[1m])) / 1024 / 1024'
@@ -27,8 +31,26 @@ def _get_query_for_metric(metric: str) -> str:
         # 1-minute load average
         return 'node_load1'
     elif metric == "container_count":
-        # Number of live containers monitored by cAdvisor
+        # Number of live containers (returns None if no cadvisor)
         return 'count(container_last_seen)'
+    elif metric in ("request_rate", "requests"):
+        # HTTP request rate per second across all routes
+        return 'sum(rate(http_requests_total[1m]))'
+    elif metric in ("p95_latency", "latency_p95"):
+        # p95 latency in seconds across all routes
+        return 'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))'
+    elif metric in ("error_rate", "errors"):
+        # 5xx HTTP error share percentage (0-100%)
+        return '(sum(rate(http_requests_total{status=~"5.."}[1m])) / clamp_min(sum(rate(http_requests_total[1m])), 0.0001)) * 100'
+    elif metric == "demo_data_dir_bytes":
+        # Disk usage in bytes of demo data directory
+        return 'demo_data_dir_bytes'
+    elif metric in ("demo_app_cpu", "process_cpu"):
+        # Process CPU utilization (percent of 1 core)
+        return 'rate(process_cpu_seconds_total{job="demo-app"}[1m]) * 100'
+    elif metric in ("demo_app_memory", "process_memory"):
+        # Process resident memory in bytes
+        return 'process_resident_memory_bytes{job="demo-app"}'
     else:
         return metric
 
@@ -57,6 +79,8 @@ def query_range(metric: str, minutes: int) -> list[dict]:
     """
     Query Prometheus for a given metric over the last `minutes`.
     Returns a list of points: [{'t': datetime, 'v': float}, ...]
+    Raises PrometheusUnavailableException if Prometheus is unreachable.
+    Returns an empty list if Prometheus is reachable but has no data.
     """
     prom_url = settings.PROMETHEUS_URL.rstrip('/')
     url = f"{prom_url}/api/v1/query_range"
@@ -96,8 +120,11 @@ def query_range(metric: str, minutes: int) -> list[dict]:
             })
         return points
         
+    except (requests.RequestException, requests.ConnectionError, requests.Timeout) as e:
+        print(f"Prometheus connection failed: {e}")
+        raise PrometheusUnavailableException(str(e))
     except Exception as e:
-        print(f"Prometheus query failed: {e}")
+        print(f"Prometheus query processing failed: {e}")
         return []
 
 def check_health() -> bool:

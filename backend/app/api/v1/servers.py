@@ -151,7 +151,8 @@ def list_servers(db: Session = Depends(get_db)):
     live_mem = query_instant("memory") if prom_healthy else None
     live_disk = query_instant("disk") if prom_healthy else None
     live_uptime = query_instant("uptime") if prom_healthy else None
-    live_containers = int(query_instant("container_count") or 0) if prom_healthy else None
+    live_container_val = query_instant("container_count") if prom_healthy else None
+    live_containers = int(live_container_val) if live_container_val is not None else None
 
     db_servers = db.query(Server).all()
     if db_servers:
@@ -181,7 +182,7 @@ def list_servers(db: Session = Depends(get_db)):
     # Fallback default inventory with node 1 populated directly from live telemetry
     servers_copy = [dict(s) for s in DEFAULT_SERVERS]
     if prom_healthy and live_cpu is not None:
-        servers_copy[0]["hostname"] = "primary-node-host"
+        servers_copy[0]["hostname"] = "docker-desktop-vm"
         servers_copy[0]["cpu_pct"] = round(live_cpu, 2)
         if live_mem is not None:
             servers_copy[0]["mem_pct"] = round(live_mem, 2)
@@ -189,8 +190,7 @@ def list_servers(db: Session = Depends(get_db)):
             servers_copy[0]["disk_pct"] = round(live_disk, 2)
         if live_uptime is not None:
             servers_copy[0]["uptime_seconds"] = round(live_uptime, 1)
-        if live_containers:
-            servers_copy[0]["container_count"] = live_containers
+        servers_copy[0]["container_count"] = live_containers
     return servers_copy
 
 @containers_router.get("/containers", response_model=List[ContainerSchema])
@@ -283,7 +283,8 @@ def get_server(server_id: int, db: Session = Depends(get_db)):
     live_mem = query_instant("memory") if (prom_healthy and server.id == 1) else None
     live_disk = query_instant("disk") if (prom_healthy and server.id == 1) else None
     live_uptime = query_instant("uptime") if (prom_healthy and server.id == 1) else None
-    live_containers = int(query_instant("container_count") or 0) if (prom_healthy and server.id == 1) else None
+    live_container_val = query_instant("container_count") if (prom_healthy and server.id == 1) else None
+    live_containers = int(live_container_val) if live_container_val is not None else None
 
     # Derive lifecycle status from telemetry freshness
     derived_status = server.status
