@@ -6,8 +6,9 @@ from app.core.config import settings
 def _get_query_for_metric(metric: str) -> str:
     """Map telemetry metric names to genuine node_exporter PromQL queries with workload fallback."""
     if metric == "cpu":
-        # Live host CPU usage percent from node_exporter
-        return '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100)'
+        # Prefer workload simulated CPU when present (e.g. demo app fault injection),
+        # falling back cleanly to genuine node_exporter host CPU.
+        return 'max(simulated_cpu_usage) or (100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100))'
     elif metric == "memory":
         # Live host memory usage percent from node_exporter
         return '(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100'
@@ -29,6 +30,15 @@ def _get_query_for_metric(metric: str) -> str:
     elif metric == "container_count":
         # Number of live containers monitored by cAdvisor
         return 'count(container_last_seen)'
+    elif metric in ("latency_p95", "p95_latency"):
+        # p95 request duration in seconds across all routes
+        return 'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))'
+    elif metric in ("error_rate", "http_error_rate"):
+        # HTTP 5xx error percentage over total HTTP requests
+        return '((sum(rate(http_requests_total{status=~"5.."}[1m])) or vector(0)) / sum(rate(http_requests_total[1m]))) * 100'
+    elif metric == "demo_data_dir_bytes":
+        # Bounded demo disk fill size in bytes
+        return 'demo_data_dir_bytes'
     else:
         return metric
 
