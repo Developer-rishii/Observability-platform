@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Query, HTTPException
+from app.core.config import settings
 from app.services.ingestion.prometheus_client import query_range
 from app.schemas import MetricSeries, MetricPoint
 

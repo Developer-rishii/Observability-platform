@@ -62,8 +62,8 @@ export const systemApi = {
 
 export const metricsApi = {
   queryRange: async (metric: string, minutes: number = 15): Promise<MetricSeries> => {
-    const response = await apiClient.get<MetricSeries>('/metrics/query-range', {
-      params: { metric, minutes },
+    const response = await apiClient.get<MetricSeries>('/metrics/query', {
+      params: { metric, range: `${minutes}m` },
     });
     return response.data;
   },
