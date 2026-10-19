@@ -18,6 +18,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    labels:
+      - "monitor=true"
 
   demo-app:
     container_name: demo-app
@@ -50,6 +52,21 @@ services:
     restart: unless-stopped
     labels:
       - "monitor=true"
+
+  events-agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: events-agent
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+      - LABEL_FILTER=monitor=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - backend
 
 volumes:
   demo_postgres_data:
