@@ -77,16 +77,26 @@ def search(
         # Compute query vector
         query_vector = model.encode(query.strip()).tolist()
 
-        # Execute vector search
-        search_params = {
-            "collection_name": collection_name,
-            "query_vector": query_vector,
-            "limit": k,
-        }
-        if min_score > 0.0:
-            search_params["score_threshold"] = min_score
-
-        raw_results = client.search(**search_params)
+        # Support both query_points (qdrant-client >= 1.10) and legacy search API
+        if hasattr(client, "query_points"):
+            query_kwargs = {
+                "collection_name": collection_name,
+                "query": query_vector,
+                "limit": k,
+            }
+            if min_score > 0.0:
+                query_kwargs["score_threshold"] = min_score
+            response = client.query_points(**query_kwargs)
+            raw_results = getattr(response, "points", response)
+        else:
+            search_params = {
+                "collection_name": collection_name,
+                "query_vector": query_vector,
+                "limit": k,
+            }
+            if min_score > 0.0:
+                search_params["score_threshold"] = min_score
+            raw_results = client.search(**search_params)
 
         results: List[Dict[str, Any]] = []
         for hit in raw_results:
