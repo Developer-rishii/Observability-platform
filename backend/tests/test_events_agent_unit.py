@@ -11,8 +11,26 @@ Validates:
 import hashlib
 import os
 import sys
-import pytest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+import pytest
+
+# Ensure repository root or /agent is in sys.path when running pytest from backend/
+for _candidate in [
+    Path(__file__).resolve().parent.parent.parent,  # Repo root (host or GitHub Actions runner)
+    Path("/"),                                      # If mounted at root in container
+    Path(__file__).resolve().parent.parent,         # backend/ directory
+]:
+    if (_candidate / "agent").is_dir() and str(_candidate) not in sys.path:
+        sys.path.insert(0, str(_candidate))
+        break
+
+# Mock docker package if not installed in backend testing environment
+if "docker" not in sys.modules:
+    try:
+        import docker
+    except ImportError:
+        sys.modules["docker"] = MagicMock()
 
 from agent.main import (
     build_client_event_id,
