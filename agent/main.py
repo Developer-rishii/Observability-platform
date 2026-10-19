@@ -40,11 +40,12 @@ def validate_environment() -> str:
     Exits with code 1 if AGENT_SHARED_SECRET is missing or empty.
     Never prints or logs the secret.
     """
-    if not AGENT_SHARED_SECRET or not AGENT_SHARED_SECRET.strip():
+    secret = os.getenv("AGENT_SHARED_SECRET")
+    if not secret or not secret.strip():
         logger.error("Startup failed: AGENT_SHARED_SECRET environment variable is missing or empty.")
         sys.exit(1)
     logger.info("Environment configuration validated successfully.")
-    return AGENT_SHARED_SECRET.strip()
+    return secret.strip()
 
 
 def build_client_event_id(container_id: str, action: str, timestamp_ns: int) -> str:
