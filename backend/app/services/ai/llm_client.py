@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 class LLMUnavailableError(Exception):
     """Raised when the LLM cannot be reached or returns an unusable response."""
+    def __init__(self, message: str, code: str = "llm_unavailable"):
+        super().__init__(message)
+        self.code = code
 
 
 _GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -27,14 +30,22 @@ def call_llm(prompt: str) -> dict:
     Send *prompt* to the configured Gemini model and return the parsed JSON dict.
 
     Strategy:
+    - Model name is read dynamically from settings.GEMINI_MODEL (default: gemini-3.5-flash).
+      Note: Always re-check the official deprecations page (ai.google.dev/gemini-api/docs/deprecations)
+      before changing this setting.
+    - Validate API key is present before attempting call.
     - Attempt once; on failure wait 2 s and retry once.
     - Timeout per attempt = settings.LLM_TIMEOUT_SECONDS.
-    - Raises LLMUnavailableError if both attempts fail.
+    - Logs one line with error type and model name on failure, never exposing key or full prompt.
+    - Raises LLMUnavailableError if attempts fail.
     """
-    url = (
-        f"{_GEMINI_API_BASE}/{settings.GEMINI_MODEL}:generateContent"
-        f"?key={settings.GEMINI_API_KEY}"
-    )
+    api_key = settings.GEMINI_API_KEY
+    if not api_key or api_key.strip() in ("", "your_gemini_api_key_here", "fake-gemini-api-key-replace-in-env"):
+        logger.warning("Gemini API key is not configured or placeholder. Model: %s", settings.GEMINI_MODEL)
+        raise LLMUnavailableError("Gemini API key is missing or unconfigured.", code="llm_unavailable")
+
+    model_name = settings.GEMINI_MODEL
+    url = f"{_GEMINI_API_BASE}/{model_name}:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -44,6 +55,8 @@ def call_llm(prompt: str) -> dict:
     }
 
     last_error: Exception | None = None
+    last_error_type = "unknown_error"
+
     for attempt in range(2):
         try:
             resp = requests.post(
@@ -63,7 +76,7 @@ def call_llm(prompt: str) -> dict:
             ).strip()
 
             if not text:
-                raise LLMUnavailableError("Gemini returned an empty response")
+                raise LLMUnavailableError("Gemini returned an empty response", code="llm_unavailable")
 
             # Strip markdown code fences if present
             if text.startswith("```"):
@@ -73,12 +86,33 @@ def call_llm(prompt: str) -> dict:
 
             return json.loads(text)
 
+        except requests.HTTPError as exc:
+            last_error = exc
+            status_code = exc.response.status_code if exc.response is not None else 0
+            if status_code == 404:
+                last_error_type = "model_not_found_or_retired_404"
+            elif status_code == 429:
+                last_error_type = "quota_or_rate_limit_429"
+            else:
+                last_error_type = f"http_error_{status_code}"
+            logger.warning("Gemini attempt %d failed: error_type=%s, model=%s", attempt + 1, last_error_type, model_name)
+            if attempt == 0:
+                time.sleep(2)
+        except requests.Timeout as exc:
+            last_error = exc
+            last_error_type = "timeout"
+            logger.warning("Gemini attempt %d failed: error_type=%s, model=%s", attempt + 1, last_error_type, model_name)
+            if attempt == 0:
+                time.sleep(2)
         except (requests.RequestException, json.JSONDecodeError, KeyError) as exc:
             last_error = exc
-            logger.warning("LLM attempt %d failed: %s", attempt + 1, exc)
+            last_error_type = type(exc).__name__
+            logger.warning("Gemini attempt %d failed: error_type=%s, model=%s", attempt + 1, last_error_type, model_name)
             if attempt == 0:
                 time.sleep(2)
 
+    logger.error("LLM call failed completely: error_type=%s, model=%s", last_error_type, model_name)
     raise LLMUnavailableError(
-        f"LLM unavailable after 2 attempts. Last error: {last_error}"
+        f"LLM unavailable: {last_error_type}",
+        code="llm_unavailable",
     ) from last_error

@@ -87,8 +87,10 @@ export const IncidentDetailView: React.FC = () => {
       const result = await incidentsApi.analyzeWithAi(incident.id);
       setAiAnalysis(result);
     } catch (err: any) {
-      if (err.response?.status === 503) {
-        setAiError('AI Diagnostics API unavailable: GEMINI_API_KEY is not configured on the backend.');
+      if (err.response?.status === 429) {
+        setAiError(err.response?.data?.detail || 'Analysis cooldown active. Please wait a moment before requesting diagnostics again.');
+      } else if (err.response?.status === 503) {
+        setAiError(err.response?.data?.detail || 'AI Diagnostics API unavailable: LLM service could not be reached.');
       } else {
         setAiError(err.response?.data?.detail || 'AI Root-Cause Analysis failed.');
       }

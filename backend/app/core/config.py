@@ -75,8 +75,15 @@ class Settings(BaseSettings):
     # AI / Gemini                                                          #
     # ------------------------------------------------------------------ #
     GEMINI_API_KEY: str = "your_gemini_api_key_here"
-    GEMINI_MODEL: str = "gemini-1.5-pro"
-    LLM_TIMEOUT_SECONDS: int = 30
+    GEMINI_MODEL: str = "gemini-3.5-flash"
+    LLM_TIMEOUT_SECONDS: int = 60
+    ANALYSIS_COOLDOWN_SECONDS: int = 60
+
+    # ------------------------------------------------------------------ #
+    # RAG / Retrieval                                                      #
+    # ------------------------------------------------------------------ #
+    RAG_TOP_K: int = 5
+    RAG_MIN_SCORE: float = 0.45
 
     # ------------------------------------------------------------------ #
     # Legacy / other services                                              #
