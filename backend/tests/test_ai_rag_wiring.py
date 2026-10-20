@@ -128,16 +128,93 @@ def test_call_llm_timeout():
             call_llm("test prompt")
 
 
-def test_call_llm_malformed_json():
+def test_call_llm_primary_success():
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.raise_for_status.return_value = None
-    mock_resp.json.return_value = _make_gemini_resp("This is not valid JSON at all")
+    mock_resp.json.return_value = _make_gemini_resp(json.dumps(_GOOD_LLM_RESPONSE))
 
-    with patch("app.services.ai.llm_client.requests.post", return_value=mock_resp), \
+    with patch("app.services.ai.llm_client.requests.post", return_value=mock_resp) as mock_post:
+        result = call_llm("test prompt")
+        assert result["confidence"] == "high"
+        # Should only call primary model once
+        assert mock_post.call_count == 1
+        assert settings.GEMINI_MODEL in mock_post.call_args[0][0]
+
+
+def test_call_llm_fallback_on_429_quota():
+    """When primary model returns 429, it immediately switches to fallback model."""
+    import requests
+    resp_429 = MagicMock()
+    resp_429.status_code = 429
+    resp_429.raise_for_status.side_effect = requests.HTTPError(response=resp_429)
+
+    resp_200 = MagicMock()
+    resp_200.status_code = 200
+    resp_200.raise_for_status.return_value = None
+    resp_200.json.return_value = _make_gemini_resp(json.dumps(_GOOD_LLM_RESPONSE))
+
+    # 1st call fails with 429 on primary; 2nd call succeeds on fallback
+    with patch("app.services.ai.llm_client.requests.post", side_effect=[resp_429, resp_200]) as mock_post, \
+         patch("app.services.ai.llm_client.time.sleep") as mock_sleep:
+        result = call_llm("test prompt")
+        assert result["confidence"] == "high"
+        assert mock_post.call_count == 2
+        # First call was primary
+        assert settings.GEMINI_MODEL in mock_post.call_args_list[0][0][0]
+        # Second call was fallback model
+        assert settings.GEMINI_FALLBACK_MODEL in mock_post.call_args_list[1][0][0]
+        # Should switch immediately without waiting 2s cooldown on the exhausted primary
+        assert mock_sleep.call_count == 0
+
+
+def test_call_llm_fallback_on_503():
+    """When primary model returns 503, it switches to fallback model."""
+    import requests
+    resp_503 = MagicMock()
+    resp_503.status_code = 503
+    resp_503.raise_for_status.side_effect = requests.HTTPError(response=resp_503)
+
+    resp_200 = MagicMock()
+    resp_200.status_code = 200
+    resp_200.raise_for_status.return_value = None
+    resp_200.json.return_value = _make_gemini_resp(json.dumps(_GOOD_LLM_RESPONSE))
+
+    with patch("app.services.ai.llm_client.requests.post", side_effect=[resp_503, resp_200]) as mock_post:
+        result = call_llm("test prompt")
+        assert result["confidence"] == "high"
+        assert mock_post.call_count == 2
+        assert settings.GEMINI_FALLBACK_MODEL in mock_post.call_args_list[1][0][0]
+
+
+def test_call_llm_both_models_fail():
+    """When both primary and fallback models fail, LLMUnavailableError is raised."""
+    import requests
+    resp_429 = MagicMock()
+    resp_429.status_code = 429
+    resp_429.raise_for_status.side_effect = requests.HTTPError(response=resp_429)
+
+    resp_503 = MagicMock()
+    resp_503.status_code = 503
+    resp_503.raise_for_status.side_effect = requests.HTTPError(response=resp_503)
+
+    with patch("app.services.ai.llm_client.requests.post", side_effect=[resp_429, resp_503, resp_503]), \
          patch("app.services.ai.llm_client.time.sleep"):
         with pytest.raises(LLMUnavailableError):
             call_llm("test prompt")
+
+
+def test_call_llm_no_fallback_on_client_error():
+    """Client errors like 401/403 should not retry or invoke fallback."""
+    import requests
+    resp_401 = MagicMock()
+    resp_401.status_code = 401
+    resp_401.raise_for_status.side_effect = requests.HTTPError(response=resp_401)
+
+    with patch("app.services.ai.llm_client.requests.post", return_value=resp_401) as mock_post:
+        with pytest.raises(LLMUnavailableError):
+            call_llm("test prompt")
+        assert mock_post.call_count == 1
 
 
 # ---------------------------------------------------------------------------

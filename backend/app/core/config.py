@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     GEMINI_API_KEY: str = "your_gemini_api_key_here"
     GEMINI_MODEL: str = "gemini-3.5-flash"
+    GEMINI_FALLBACK_MODEL: str = "gemini-3.1-flash-lite"
     LLM_TIMEOUT_SECONDS: int = 60
     ANALYSIS_COOLDOWN_SECONDS: int = 60
 
