@@ -183,6 +183,14 @@ class EvidenceItem(_Base):
     ref: Optional[Any] = None
 
 
+class KnowledgeSourceItem(_Base):
+    """Knowledge source document chunk reference."""
+    title: str
+    section: Optional[str] = None
+    score: Optional[float] = None
+    source_file: Optional[str] = None
+
+
 class RCAOut(_Base):
     """Structured response returned by POST /incidents/{id}/analyze."""
     summary: str
@@ -197,6 +205,9 @@ class RCAOut(_Base):
     alternative_causes: List[str] = []
     # Backwards-compat: old prompt returned next_steps
     next_steps: List[str] = []
+    # RAG knowledge sources
+    knowledge_sources: List[KnowledgeSourceItem] = []
+    knowledgeSources: List[KnowledgeSourceItem] = []
 
 
 # ---------------------------------------------------------------------------

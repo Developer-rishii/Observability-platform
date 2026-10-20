@@ -265,10 +265,12 @@ export const RcaWorkspacePage: React.FC = () => {
         ...prev,
       ]);
     } catch (err: any) {
-      if (err.response?.status === 503) {
-        setAiError('AI service unavailable. The GEMINI_API_KEY may not be configured on the backend, or the model could not be reached.');
+      if (err.response?.status === 429) {
+        setAiError(err.response?.data?.detail || 'Analysis cooldown active. Please wait a moment before requesting diagnostics again.');
+      } else if (err.response?.status === 503) {
+        setAiError(err.response?.data?.detail || 'AI service unavailable: LLM service could not be reached.');
       } else {
-        setAiError(err.response?.data?.detail ?? 'AI Root-Cause Analysis failed. Please retry.');
+        setAiError(err.response?.data?.detail || 'AI Root-Cause Analysis failed. Please retry.');
       }
     } finally {
       setAnalyzing(false);
