@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     # Legacy / other services                                              #
     # ------------------------------------------------------------------ #
-    LOKI_URL: str = "http://host.docker.internal:3100"
+    LOKI_URL: str = "http://loki:3100"
     AGENT_SHARED_SECRET: str = "supersecretagentkey123"
     MODEL_PATH: str = "/models/isolation_forest.pkl"
     ANOMALY_THRESHOLD: float = 0.95

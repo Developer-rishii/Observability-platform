@@ -1,0 +1,76 @@
+// Discovery component querying Docker daemon with 5s refresh
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "5s"
+}
+
+// Relabel to filter monitor=true and construct service/container labels
+discovery.relabel "monitored_containers" {
+	targets = discovery.docker.containers.targets
+
+	// Rule 1: Keep only containers with label monitor="true"
+	rule {
+		source_labels = ["__meta_docker_container_label_monitor"]
+		regex         = "true"
+		action        = "keep"
+	}
+
+	// Rule 2: Set 'service' from compose service label if present
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "(.+)"
+		target_label  = "service"
+	}
+
+	// Rule 3: Fall back 'service' to container name (without leading slash) if compose service is empty
+	rule {
+		source_labels = ["service", "__meta_docker_container_name"]
+		regex         = ";/(.+)"
+		target_label  = "service"
+	}
+
+	// Rule 4: Extract 'container' label from container name (strip leading slash)
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/?(.*)"
+		target_label  = "container"
+	}
+
+	// Rule 5: Ensure 'job' label is set to service name for compatibility
+	rule {
+		source_labels = ["service"]
+		target_label  = "job"
+	}
+}
+
+// Tail logs from discovered monitored containers
+loki.source.docker "docker_logs" {
+	host             = "unix:///var/run/docker.sock"
+	targets          = discovery.relabel.monitored_containers.output
+	forward_to       = [loki.process.extract_metadata.receiver]
+	refresh_interval = "5s"
+}
+
+// Parse JSON if possible to extract level, while forwarding non-JSON lines intact
+loki.process "extract_metadata" {
+	forward_to = [loki.write.local_loki.receiver]
+
+	stage.json {
+		expressions = {
+			extracted_level = "level",
+		}
+	}
+
+	stage.labels {
+		values = {
+			level = "extracted_level",
+		}
+	}
+}
+
+// Push to Loki service in Docker network
+loki.write "local_loki" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

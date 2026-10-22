@@ -64,7 +64,7 @@ services:
       - SMTP_FROM_NAME=${SMTP_FROM_NAME:-AetherPulse Cloud Observability}
       - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
       - PROMETHEUS_URL=${PROMETHEUS_URL:-http://prometheus:9090}
-      - LOKI_URL=${LOKI_URL:-http://host.docker.internal:3100}
+      - LOKI_URL=${LOKI_URL:-http://loki:3100}
       - DETECTION_INTERVAL_SECONDS=${DETECTION_INTERVAL_SECONDS:-15}
       - DETECTION_CONSECUTIVE_BREACHES=${DETECTION_CONSECUTIVE_BREACHES:-3}
       - DETECTION_RECOVERY_CHECKS=${DETECTION_RECOVERY_CHECKS:-3}
@@ -94,6 +94,42 @@ services:
       resources:
         limits:
           memory: 1G
+
+  loki:
+    image: grafana/loki:3.7.8
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LOKI_HOST_PORT:-3100}:3100"
+    volumes:
+      - ./infrastructure/loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    command:
+      - "-config.file=/etc/loki/config.yml"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:12345:12345"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infrastructure/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   prometheus:
     image: prom/prometheus:latest
@@ -155,3 +191,5 @@ volumes:
   postgres_data:
   qdrant_data:
   prometheus_data:
+  loki_data:
+  alloy_data:
