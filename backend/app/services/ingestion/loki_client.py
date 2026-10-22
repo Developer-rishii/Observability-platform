@@ -9,12 +9,72 @@ from __future__ import annotations
 import re
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from app.core.config import settings
 from app.schemas import LogLine
 
 _LEVEL_REGEX = re.compile(r"\b(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL|FATAL)\b", re.IGNORECASE)
+
+ALLOWED_LEVELS = {"DEBUG", "INFO", "WARN", "WARNING", "ERROR", "CRITICAL", "FATAL"}
+
+
+def escape_logql_regex_string(val: str) -> str:
+    r"""
+    Escape a free text string for safe interpolation into a LogQL regex filter:
+    1. Escape regex metacharacters so the text is matched literally (without escaping whitespace).
+    2. Escape backslashes and double quotes for the surrounding LogQL double-quoted string.
+    """
+    # 1. Regex metacharacters escaping (only true regex metacharacters, never space/alphanumerics)
+    regex_metachars = set(r".^$*+?{}[]\|()")
+    escaped_chars = []
+    for c in val:
+        if c in regex_metachars:
+            escaped_chars.append("\\" + c)
+        else:
+            escaped_chars.append(c)
+    regex_str = "".join(escaped_chars)
+
+    # 2. String literal escaping for LogQL double-quoted string
+    # In LogQL string syntax, backslashes must be doubled (`\\`) and double quotes escaped (`\"`)
+    logql_escaped = regex_str.replace("\\", "\\\\").replace('"', '\\"')
+    return logql_escaped
+
+
+def build_logql_query(
+    query_str: Optional[str] = None,
+    level: Optional[str] = None,
+    service: Optional[str] = None,
+) -> str:
+    """Build a validated, safe LogQL query string."""
+    # Base stream selector
+    if service and service.strip() and service.strip().lower() != "all":
+        clean_service = re.sub(r"[^a-zA-Z0-9_\-\.]", "", service.strip())
+        base_selector = f'{{service="{clean_service}"}}'
+    else:
+        # Default selector matches any service stream in Loki
+        base_selector = '{service=~".+"}'
+
+    logql = base_selector
+
+    # Append case-insensitive regex text filter if provided
+    if query_str and query_str.strip():
+        safe_q = escape_logql_regex_string(query_str.strip())
+        logql += f' |~ "(?i){safe_q}"'
+
+    # Append log level line filter if specified
+    if level and level.strip():
+        clean_level = level.strip().upper()
+        if clean_level not in ("ALL", "") and clean_level in ALLOWED_LEVELS:
+            if clean_level in ("WARN", "WARNING"):
+                logql += ' |~ "(?i)\\\\b(WARN|WARNING)\\\\b"'
+            elif clean_level in ("CRITICAL", "FATAL", "ERROR"):
+                logql += f' |~ "(?i)\\\\b{clean_level}\\\\b"'
+            else:
+                logql += f' |~ "(?i)\\\\b{clean_level}\\\\b"'
+
+    return logql
+
 
 def check_loki_health() -> bool:
     """Verify if Loki is reachable and in ready state."""
@@ -25,11 +85,14 @@ def check_loki_health() -> bool:
     except Exception:
         return False
 
+
 def query_logs(
     query_str: Optional[str] = None,
     level: Optional[str] = None,
     service: Optional[str] = None,
     minutes: int = 60,
+    start_dt: Optional[datetime] = None,
+    end_dt: Optional[datetime] = None,
     limit: int = 100,
 ) -> List[LogLine]:
     """
@@ -39,29 +102,16 @@ def query_logs(
     loki_url = settings.LOKI_URL.rstrip('/')
     url = f"{loki_url}/loki/api/v1/query_range"
 
-    # Base stream selector
-    if service and service.lower() != "all":
-        # sanitize service name
-        clean_service = re.sub(r"[^a-zA-Z0-9_\-\.]", "", service)
-        base_selector = f'{{service="{clean_service}"}}'
+    logql = build_logql_query(query_str=query_str, level=level, service=service)
+
+    # Time boundaries (in nanoseconds)
+    if start_dt is not None and end_dt is not None:
+        start_ns = int(start_dt.timestamp() * 1e9)
+        end_ns = int(end_dt.timestamp() * 1e9)
     else:
-        base_selector = '{job=~".+"}'
-
-    logql = base_selector
-
-    # Append case-insensitive regex text filter if provided
-    if query_str and query_str.strip():
-        # Sanitize query string to prevent LogQL injection
-        escaped_query = re.escape(query_str.strip())
-        logql += f' |~ "(?i){escaped_query}"'
-
-    # Append log level line filter if specified
-    if level and level.upper() not in ("ALL", ""):
-        clean_level = re.escape(level.upper())
-        logql += f' |~ "(?i)\\b{clean_level}\\b"'
-
-    end_ns = int(time.time() * 1e9)
-    start_ns = end_ns - int(minutes * 60 * 1e9)
+        now_ts = time.time()
+        end_ns = int(now_ts * 1e9)
+        start_ns = end_ns - int(minutes * 60 * 1e9)
 
     params = {
         "query": logql,
@@ -87,19 +137,26 @@ def query_logs(
             for entry in stream.get("values", []):
                 ts_ns_str, line_text = entry[0], entry[1]
                 ts_sec = float(ts_ns_str) / 1e9
-                dt = datetime.utcfromtimestamp(ts_sec)
+                dt = datetime.fromtimestamp(ts_sec, timezone.utc)
 
-                # Detect severity level from text if not labeled
-                detected_level = "INFO"
-                match = _LEVEL_REGEX.search(line_text)
-                if match:
-                    raw_lvl = match.group(1).upper()
-                    if raw_lvl in ("WARN", "WARNING"):
-                        detected_level = "WARN"
-                    elif raw_lvl in ("CRITICAL", "FATAL"):
-                        detected_level = "ERROR"
+                # Detect severity level: prioritize stream label if present; fallback to regex
+                detected_level = stream_labels.get("level")
+                if not detected_level:
+                    match = _LEVEL_REGEX.search(line_text)
+                    if match:
+                        raw_lvl = match.group(1).upper()
+                        if raw_lvl in ("WARN", "WARNING"):
+                            detected_level = "WARN"
+                        elif raw_lvl in ("CRITICAL", "FATAL"):
+                            detected_level = "ERROR"
+                        else:
+                            detected_level = raw_lvl
                     else:
-                        detected_level = raw_lvl
+                        detected_level = "INFO"
+                else:
+                    detected_level = detected_level.upper()
+                    if detected_level == "WARNING":
+                        detected_level = "WARN"
 
                 # Generate deterministic record id
                 record_id = f"log-{ts_ns_str[:16]}"

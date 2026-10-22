@@ -47,7 +47,7 @@ A full-stack, enterprise-grade cloud observability platform featuring real-time 
 | **Frontend** | 5173 | **5173** | React/Vite Telemetry Dashboard | `http://localhost:5173` |
 | **Backend API** | 8000 | **8000** | FastAPI Application & AI Diagnostics | `http://localhost:8000/api/v1/system/health` |
 | **Prometheus** | 9090 | **9090** | TSDB Scrape Engine | `http://localhost:9090/-/healthy` |
-| **Loki** | 3100 | **3100** | Centralized Log Aggregation Storage | `http://localhost:3100/ready` |
+| **Loki** | 3100 | **3100** | Centralized Log Aggregation Storage (bound to 127.0.0.1; override with `LOKI_HOST_PORT`) | `http://localhost:3100/ready` |
 | **Qdrant** | 6333 | **6333** | Vector Knowledge Base (`incident_knowledge_base`) | `http://localhost:6333/readyz` |
 | **Platform DB** | 5432 | **5433** | PostgreSQL (Users, Incidents, Alerts, AI Analyses)| `pg_isready -p 5433 -U user` |
 | **Node Exporter** | 9100 | **9100** | Host Resource Metrics Exporter | `http://localhost:9100/` |
@@ -57,6 +57,7 @@ A full-stack, enterprise-grade cloud observability platform featuring real-time 
 
 > [!NOTE]
 > - Host port `8080` is reserved and must not be claimed. The demo application is mapped to host port **8081** (`${WORKLOAD_HOST_PORT:-8081}:8080`).
+> - Loki binds to `127.0.0.1:${LOKI_HOST_PORT:-3100}:3100`; on machines where port 3100 is already in use by host services, set `LOKI_HOST_PORT=3101` in `.env`.
 > - The demo database `demo-db` runs strictly on the internal Docker network to prevent port collisions with the platform database on host port `5433`.
 
 ---
