@@ -22,6 +22,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { incidentsApi, alertsApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { formatLocalTime, formatLocalDate, parseUtcDate } from '../utils/dateUtils';
 import type { 
   Incident, 
   IncidentStatus, 
@@ -177,8 +178,8 @@ export const IncidentsList: React.FC = () => {
       return true;
     }).sort((a, b) => {
       if (sortField === 'detectedAt') {
-        const timeA = new Date(a.detectedAt).getTime();
-        const timeB = new Date(b.detectedAt).getTime();
+        const timeA = parseUtcDate(a.detectedAt).getTime();
+        const timeB = parseUtcDate(b.detectedAt).getTime();
         return sortAsc ? timeA - timeB : timeB - timeA;
       }
       if (sortField === 'metricValue') {
@@ -544,7 +545,6 @@ export const IncidentsList: React.FC = () => {
               <tbody>
                 {paginatedIncidents.length > 0 ? (
                   paginatedIncidents.map((incident) => {
-                    const detectedDate = new Date(incident.detectedAt);
                     const isBusy = actionInProgressId === incident.id;
 
                     return (
@@ -593,8 +593,8 @@ export const IncidentsList: React.FC = () => {
                           <StatusBadge status={incident.status} />
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--color-text-muted)' }}>
-                          {detectedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          <div style={{ fontSize: '0.6875rem' }}>{detectedDate.toLocaleDateString()}</div>
+                          {formatLocalTime(incident.detectedAt)}
+                          <div style={{ fontSize: '0.6875rem' }}>{formatLocalDate(incident.detectedAt)}</div>
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--color-text-secondary)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -798,9 +798,14 @@ export const IncidentsList: React.FC = () => {
         <Card style={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#ffffff' }}>
-                Operational Alert Policies & Threshold Rules
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600, color: '#ffffff' }}>
+                  Operational Alert Policies & Threshold Rules
+                </h3>
+                <span style={{ fontSize: '0.6875rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                  Demo Data
+                </span>
+              </div>
               <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
                 Production detection rules evaluated on continuous 15s intervals via Prometheus time-series engines.
               </p>

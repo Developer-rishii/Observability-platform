@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
 from pydantic.alias_generators import to_camel
 
 # ---------------------------------------------------------------------------
@@ -25,6 +25,15 @@ class _Base(BaseModel):
         populate_by_name=True,
         from_attributes=True,
     )
+
+    @field_serializer("*", mode="wrap")
+    def _serialize_dates(self, value: Any, handler: Any) -> Any:
+        res = handler(value)
+        if isinstance(value, datetime):
+            iso = value.isoformat()
+            if not iso.endswith("Z") and "+" not in iso and "-" not in iso[-6:]:
+                return f"{iso}Z"
+        return res
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +176,11 @@ class IncidentSchema(_Base):
     window_end: Optional[datetime] = None
     affected_metrics: List[str] = []
 
+    @field_validator("detected_at", "resolved_at", "window_start", "window_end", mode="before")
+    @classmethod
+    def ensure_datetime(cls, v: Any) -> Any:
+        return v
+
 
 class IncidentPatch(_Base):
     """Allowed fields for PATCH /incidents/{id}."""
@@ -183,6 +197,14 @@ class EvidenceItem(_Base):
     ref: Optional[Any] = None
 
 
+class KnowledgeSourceItem(_Base):
+    """Knowledge source document chunk reference."""
+    title: str
+    section: Optional[str] = None
+    score: Optional[float] = None
+    source_file: Optional[str] = None
+
+
 class RCAOut(_Base):
     """Structured response returned by POST /incidents/{id}/analyze."""
     summary: str
@@ -197,6 +219,9 @@ class RCAOut(_Base):
     alternative_causes: List[str] = []
     # Backwards-compat: old prompt returned next_steps
     next_steps: List[str] = []
+    # RAG knowledge sources
+    knowledge_sources: List[KnowledgeSourceItem] = []
+    knowledgeSources: List[KnowledgeSourceItem] = []
 
 
 # ---------------------------------------------------------------------------
@@ -264,9 +289,10 @@ class RcaResult(_Base):
 
 class IncidentDetail(IncidentSchema):
     metric_evidence: List[MetricSeries] = []
-    logs: List[LogLine] = []         # deferred — always empty for now
-    events: List[DockerEvent] = []   # deferred — always empty for now
+    logs: List[LogLine] = []
+    events: List[DockerEvent] = []
     analysis: Optional[RcaResult] = None
+    source_notes: List[str] = []
 
 
 # ---------------------------------------------------------------------------

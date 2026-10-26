@@ -13,3 +13,5 @@ requests>=2.31.0
 pytest>=7.4.0
 httpx>=0.24.1
 APScheduler==3.11.3
+qdrant-client>=1.7.0
+sentence-transformers>=2.2.0

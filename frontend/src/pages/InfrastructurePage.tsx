@@ -140,41 +140,6 @@ export const InfrastructurePage: React.FC = () => {
         });
       });
 
-      // 3. Add Managed Cloud Data Services (Identified clearly for full inventory scope)
-      if (mappedResources.length <= 6) {
-        mappedResources.push(
-          {
-            id: 'rds-pg-prod-primary',
-            name: 'aetherpulse-aurora-postgres-01',
-            type: 'database',
-            environment: 'production',
-            region: 'us-east-1',
-            status: 'healthy',
-            cpuPct: 32.4,
-            memPct: 61.2,
-            networkThroughputMbps: 88.4,
-            lastSeen: 'Just now',
-            service: 'timescale-telemetry-db',
-            tags: ['timescaledb', 'aurora', 'sample-inventory'],
-            isSampleData: true,
-          },
-          {
-            id: 'k8s-node-worker-04',
-            name: 'us-east-prod-worker-node-04',
-            type: 'k8s-node',
-            environment: 'production',
-            region: 'us-east-1',
-            status: 'warning',
-            cpuPct: 84.6,
-            memPct: 79.2,
-            networkThroughputMbps: 45.1,
-            lastSeen: '1m ago',
-            service: 'cluster-compute-plane',
-            tags: ['kubernetes', 'spot-instance', 'sample-inventory'],
-            isSampleData: true,
-          }
-        );
-      }
 
       setResources(mappedResources);
     } catch (err) {

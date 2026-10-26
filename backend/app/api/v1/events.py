@@ -7,6 +7,7 @@ Provides:
 
 from __future__ import annotations
 
+import hmac
 from datetime import datetime
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -57,7 +58,7 @@ def ingest_event(
     Uses constant-time comparison against AGENT_SHARED_SECRET.
     Guarantees idempotency via client_event_id.
     """
-    if not x_agent_token or x_agent_token != settings.AGENT_SHARED_SECRET:
+    if not x_agent_token or not hmac.compare_digest(x_agent_token, settings.AGENT_SHARED_SECRET):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing X-Agent-Token authorization header.",

@@ -19,6 +19,7 @@ import { Card } from '../components/ui/Card';
 import { SeverityBadge, StatusBadge, Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { incidentsApi } from '../api/services';
+import { formatLocalDateTime } from '../utils/dateUtils';
 import type { IncidentDetail, IncidentStatus, RcaAnalysis } from '../types';
 
 export const IncidentDetailView: React.FC = () => {
@@ -87,8 +88,10 @@ export const IncidentDetailView: React.FC = () => {
       const result = await incidentsApi.analyzeWithAi(incident.id);
       setAiAnalysis(result);
     } catch (err: any) {
-      if (err.response?.status === 503) {
-        setAiError('AI Diagnostics API unavailable: GEMINI_API_KEY is not configured on the backend.');
+      if (err.response?.status === 429) {
+        setAiError(err.response?.data?.detail || 'Analysis cooldown active. Please wait a moment before requesting diagnostics again.');
+      } else if (err.response?.status === 503) {
+        setAiError(err.response?.data?.detail || 'AI Diagnostics API unavailable: LLM service could not be reached.');
       } else {
         setAiError(err.response?.data?.detail || 'AI Root-Cause Analysis failed.');
       }
@@ -264,7 +267,7 @@ export const IncidentDetailView: React.FC = () => {
               </div>
               <div>
                 <span style={{ color: 'var(--color-text-muted)', display: 'block', fontSize: '0.75rem' }}>Detected At</span>
-                <span style={{ color: '#ffffff', fontWeight: 500 }}>{new Date(incident.detectedAt).toLocaleString()}</span>
+                <span style={{ color: '#ffffff', fontWeight: 500 }}>{formatLocalDateTime(incident.detectedAt)}</span>
               </div>
             </div>
 
