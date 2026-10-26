@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.incident import Incident
-from app.schemas import Envelope, IncidentSchema, IncidentPatch
+from app.schemas import Envelope, IncidentSchema, IncidentPatch, IncidentDetail
+from app.services.correlation.incident_context import get_incident_evidence
 
 router = APIRouter()
 
@@ -35,13 +36,21 @@ def list_incidents(
     incidents = query.order_by(Incident.detected_at.desc()).offset(offset).limit(limit).all()
     return Envelope(items=incidents, total=total, limit=limit, offset=offset)
 
-@router.get("/{incident_id}", response_model=IncidentSchema)
+@router.get("/{incident_id}", response_model=IncidentDetail)
 def get_incident(incident_id: int, db: Session = Depends(get_db)):
-    """Get a specific incident by ID."""
+    """Get a specific incident by ID with correlated evidence (logs, Docker events, and source notes)."""
     incident = db.query(Incident).filter(Incident.id == incident_id).first()
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return incident
+
+    logs, events, source_notes = get_incident_evidence(db, incident)
+
+    # Construct IncidentDetail from ORM object + correlated evidence
+    incident_detail = IncidentDetail.model_validate(incident)
+    incident_detail.logs = logs
+    incident_detail.events = events
+    incident_detail.source_notes = source_notes
+    return incident_detail
 
 @router.patch("/{incident_id}/status", response_model=IncidentSchema)
 def patch_incident_status(

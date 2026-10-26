@@ -98,6 +98,7 @@ def query_logs(
     """
     Execute a bounded query against Loki and return structured LogLine schemas.
     Safely sanitizes text filters and maps stream records.
+    Supports either relative `minutes` (from now) or explicit [start_dt, end_dt] window.
     """
     loki_url = settings.LOKI_URL.rstrip('/')
     url = f"{loki_url}/loki/api/v1/query_range"
@@ -106,8 +107,10 @@ def query_logs(
 
     # Time boundaries (in nanoseconds)
     if start_dt is not None and end_dt is not None:
-        start_ns = int(start_dt.timestamp() * 1e9)
-        end_ns = int(end_dt.timestamp() * 1e9)
+        s = start_dt if start_dt.tzinfo is not None else start_dt.replace(tzinfo=timezone.utc)
+        e = end_dt if end_dt.tzinfo is not None else end_dt.replace(tzinfo=timezone.utc)
+        start_ns = int(s.timestamp() * 1e9)
+        end_ns = int(e.timestamp() * 1e9)
     else:
         now_ts = time.time()
         end_ns = int(now_ts * 1e9)

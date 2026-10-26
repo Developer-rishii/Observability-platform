@@ -1,0 +1,29 @@
+[
+  {
+    "id": 501,
+    "event_type": "container.stop",
+    "source": "docker",
+    "severity": "warning",
+    "timestamp": "2026-10-16T14:45:00Z",
+    "payload": {
+      "container_name": "demo-db",
+      "service": "demo-db",
+      "action": "stop",
+      "message": "container.stop on demo-db"
+    }
+  },
+  {
+    "id": 502,
+    "event_type": "container.die",
+    "source": "docker",
+    "severity": "critical",
+    "timestamp": "2026-10-16T14:45:02Z",
+    "payload": {
+      "container_name": "demo-db",
+      "service": "demo-db",
+      "action": "die",
+      "exit_code": 0,
+      "message": "container.die on demo-db"
+    }
+  }
+]
