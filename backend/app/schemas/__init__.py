@@ -289,9 +289,10 @@ class RcaResult(_Base):
 
 class IncidentDetail(IncidentSchema):
     metric_evidence: List[MetricSeries] = []
-    logs: List[LogLine] = []         # deferred — always empty for now
-    events: List[DockerEvent] = []   # deferred — always empty for now
+    logs: List[LogLine] = []
+    events: List[DockerEvent] = []
     analysis: Optional[RcaResult] = None
+    source_notes: List[str] = []
 
 
 # ---------------------------------------------------------------------------
