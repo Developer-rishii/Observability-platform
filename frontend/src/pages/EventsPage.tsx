@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { SearchInput } from '../components/ui/SearchInput';
 import { RefreshCw, Radio } from 'lucide-react';
 import { eventsApi, type EventEntry } from '../api/services';
+import { formatLocalTime, formatLocalDate } from '../utils/dateUtils';
 
 export const EventsPage: React.FC = () => {
   const [search, setSearch] = useState('');
@@ -60,7 +61,7 @@ export const EventsPage: React.FC = () => {
       width: '180px',
       render: (row) => (
         <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-          {new Date(row.timestamp).toLocaleTimeString()} ({new Date(row.timestamp).toLocaleDateString()})
+          {formatLocalTime(row.timestamp)} ({formatLocalDate(row.timestamp)})
         </span>
       ),
     },
