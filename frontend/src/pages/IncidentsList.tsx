@@ -22,6 +22,7 @@ import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { incidentsApi, alertsApi } from '../api/services';
 import { useAuth } from '../context/AuthContext';
+import { formatLocalTime, formatLocalDate, parseUtcDate } from '../utils/dateUtils';
 import type { 
   Incident, 
   IncidentStatus, 
@@ -177,8 +178,8 @@ export const IncidentsList: React.FC = () => {
       return true;
     }).sort((a, b) => {
       if (sortField === 'detectedAt') {
-        const timeA = new Date(a.detectedAt).getTime();
-        const timeB = new Date(b.detectedAt).getTime();
+        const timeA = parseUtcDate(a.detectedAt).getTime();
+        const timeB = parseUtcDate(b.detectedAt).getTime();
         return sortAsc ? timeA - timeB : timeB - timeA;
       }
       if (sortField === 'metricValue') {
@@ -544,7 +545,6 @@ export const IncidentsList: React.FC = () => {
               <tbody>
                 {paginatedIncidents.length > 0 ? (
                   paginatedIncidents.map((incident) => {
-                    const detectedDate = new Date(incident.detectedAt);
                     const isBusy = actionInProgressId === incident.id;
 
                     return (
@@ -593,8 +593,8 @@ export const IncidentsList: React.FC = () => {
                           <StatusBadge status={incident.status} />
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--color-text-muted)' }}>
-                          {detectedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          <div style={{ fontSize: '0.6875rem' }}>{detectedDate.toLocaleDateString()}</div>
+                          {formatLocalTime(incident.detectedAt)}
+                          <div style={{ fontSize: '0.6875rem' }}>{formatLocalDate(incident.detectedAt)}</div>
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--color-text-secondary)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
