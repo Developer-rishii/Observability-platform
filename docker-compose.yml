@@ -77,8 +77,13 @@ services:
       - LLM_TIMEOUT_SECONDS=${LLM_TIMEOUT_SECONDS:-30}
       - ANALYSIS_COOLDOWN_SECONDS=${ANALYSIS_COOLDOWN_SECONDS:-60}
       - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+      - DETECTION_MODE=${DETECTION_MODE:-ml}
+      - MODEL_PATH=${MODEL_PATH:-/models}
     volumes:
       - ./backend:/app
+      - ./agent:/agent:ro
+      - ./ml/models:/models:ro
+      - ./ml/traces:/traces
     depends_on:
       db:
         condition: service_healthy

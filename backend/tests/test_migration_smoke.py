@@ -82,7 +82,7 @@ class TestMigrationSmoke:
             cur.execute("SELECT version_num FROM alembic_version")
             rows = cur.fetchall()
         assert len(rows) == 1, f"Expected 1 alembic head, got {len(rows)}: {rows}"
-        assert rows[0][0] in ("0002_phase1_model_reconciliation", "0003_auth_tokens"), (
+        assert rows[0][0] in ("0002_phase1_model_reconciliation", "0003_auth_tokens", "0004_detection_source"), (
             f"Unexpected head: {rows[0][0]}"
         )
 

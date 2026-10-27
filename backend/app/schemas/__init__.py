@@ -170,6 +170,7 @@ class IncidentSchema(_Base):
     metric_value: float
     threshold: float
     anomaly_score: Optional[float] = None
+    detection_source: Optional[str] = "threshold"
     detected_at: datetime
     resolved_at: Optional[datetime] = None
     window_start: Optional[datetime] = None

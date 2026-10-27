@@ -243,7 +243,22 @@ export const RcaWorkspacePage: React.FC = () => {
       setLoadingIncident(true);
       const data = await incidentsApi.getById(incidentId);
       setIncident(data);
-      if (data.analysis) setAnalysis(data.analysis as RcaAnalysis);
+      if (data.analysis) {
+        const raw = data.analysis as any;
+        setAnalysis({
+          summary: raw.summary || raw.incidentSummary || '',
+          probableCause: raw.probableCause || raw.probableRootCause || '',
+          confidence: raw.confidence || 'medium',
+          supportingEvidence: raw.supportingEvidence || raw.supporting_evidence || [],
+          affectedComponents: raw.affectedComponents || raw.affected_components || [],
+          impact: raw.impact || '',
+          recommendedInvestigation: raw.recommendedInvestigation || raw.recommended_investigation || [],
+          possibleRemediation: raw.possibleRemediation || raw.possible_remediation || [],
+          alternativeCauses: raw.alternativeCauses || raw.alternative_causes || [],
+          nextSteps: raw.nextSteps || raw.recommendedInvestigation || raw.recommended_investigation || [],
+          analyzedAt: raw.analyzedAt || raw.createdAt || new Date().toISOString(),
+        });
+      }
     } catch {
       /* handled below */
     } finally {

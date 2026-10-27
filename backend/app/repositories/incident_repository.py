@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models.incident import Incident, Alert
@@ -29,8 +29,11 @@ def create_incident(
     affected_service: Optional[str] = None,
     severity: Optional[str] = None,
     description: Optional[str] = None,
+    detection_source: Optional[str] = "threshold",
+    anomaly_score: Optional[float] = None,
+    affected_metrics: Optional[List[str]] = None,
 ) -> Incident:
-    """Create a new incident and an associated alert for a threshold breach."""
+    """Create a new incident and an associated alert for a threshold breach or ML anomaly."""
     if severity is None:
         severity = calculate_severity(metric_value, threshold)
     
@@ -48,8 +51,10 @@ def create_incident(
         metric_name=metric_name,
         metric_value=metric_value,
         threshold=threshold,
+        anomaly_score=anomaly_score,
+        detection_source=detection_source or "threshold",
         detected_at=datetime.utcnow(),
-        affected_metrics=[metric_name],
+        affected_metrics=affected_metrics if affected_metrics is not None else [metric_name],
     )
     db.add(incident)
     db.commit()
