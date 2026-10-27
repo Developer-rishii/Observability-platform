@@ -397,6 +397,7 @@ def test_sustained_fault_lifecycle_integration_flow():
 
     with (
         patch("app.core.database.SessionLocal", mock_session_cls),
+        patch("app.services.detection.scheduler.init_detector", return_value=False),
         patch("app.services.ingestion.prometheus_client.query_range", side_effect=current_cpu_query),
         patch("app.services.detection.scheduler._query_container_restarts", return_value=0.0),
         patch("app.repositories.incident_repository.get_open_incident_for_metric", side_effect=mock_get_open),
@@ -485,3 +486,110 @@ def test_cpu_query_prefers_simulated_and_falls_back():
         val = query_instant("cpu")
         assert val == 15.5
         assert is_breach(val, 80.0) is False
+
+
+def test_rule_guard_error_rate_consecutive_breach():
+    """Verify error_rate_5m guard opens an incident with detection_source='rule' after 3 consecutive breaches."""
+    from unittest.mock import MagicMock
+    from app.services.detection.scheduler import (
+        _evaluate_rule_guards,
+        reset_consecutive_state,
+        set_last_seen_event_id,
+    )
+
+    reset_consecutive_state()
+    set_last_seen_event_id(100)
+
+    mock_db = MagicMock()
+    # No existing open incident (get_open_incident_for_metric chains two filter() calls)
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
+
+    # Base features: error_rate is index 4 (12.0% > 5.0%)
+    features_breach = [5.0, 1.0, 0.05, 0.01, 12.0, 5.0, 0.0, 0.0]
+
+    # Cycle 1: breach count 1 -> no incident yet
+    _evaluate_rule_guards(mock_db, features_breach, n_breaches=3, m_recovery=3)
+    assert not any(call[0][0].__class__.__name__ == "Incident" for call in mock_db.add.call_args_list)
+
+    # Cycle 2: breach count 2 -> no incident yet
+    _evaluate_rule_guards(mock_db, features_breach, n_breaches=3, m_recovery=3)
+    assert not any(call[0][0].__class__.__name__ == "Incident" for call in mock_db.add.call_args_list)
+
+    # Cycle 3: breach count 3 -> incident created
+    _evaluate_rule_guards(mock_db, features_breach, n_breaches=3, m_recovery=3)
+    created_incidents = [call[0][0] for call in mock_db.add.call_args_list if call[0][0].__class__.__name__ == "Incident"]
+    assert len(created_incidents) == 1
+    inc = created_incidents[0]
+    assert inc.metric_name == "error_rate_5m"
+    assert inc.detection_source == "rule"
+    assert inc.metric_value == 12.0
+
+
+def test_rule_guard_data_dir_growth():
+    """Verify data_dir_growth_5m guard triggers immediately when growth >= 26214400 bytes."""
+    from unittest.mock import MagicMock
+    from app.services.detection.scheduler import (
+        _evaluate_rule_guards,
+        reset_consecutive_state,
+        set_last_seen_event_id,
+    )
+
+    reset_consecutive_state()
+    set_last_seen_event_id(100)
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
+
+    # 30MB growth (>= 26214400 bytes)
+    features_growth = [5.0, 1.0, 0.05, 0.01, 0.0, 5.0, 0.0, 31457280.0]
+
+    _evaluate_rule_guards(mock_db, features_growth, n_breaches=3, m_recovery=3)
+    created_incidents = [call[0][0] for call in mock_db.add.call_args_list if call[0][0].__class__.__name__ == "Incident"]
+    assert len(created_incidents) == 1
+    inc = created_incidents[0]
+    assert inc.metric_name == "data_dir_growth_5m"
+    assert inc.detection_source == "rule"
+    assert inc.metric_value == 31457280.0
+
+
+def test_rule_guard_container_die_oom_watermark():
+    """Verify container die/oom guard fires once per new event above the startup watermark."""
+    from unittest.mock import MagicMock
+    from app.services.detection.scheduler import (
+        _evaluate_rule_guards,
+        reset_consecutive_state,
+        set_last_seen_event_id,
+        get_last_seen_event_id,
+    )
+    from app.models.models import Event
+
+    reset_consecutive_state()
+    # Startup watermark at event 50
+    set_last_seen_event_id(50)
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    ev1 = MagicMock(spec=Event)
+    ev1.id = 51
+    ev1.event_type = "container.die"
+    ev1.server_id = 1
+    ev1.payload = {"container_name": "demo-app"}
+
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [ev1]
+
+    # Evaluate guard with normal features
+    features_normal = [5.0, 1.0, 0.05, 0.01, 0.0, 5.0, 0.0, 0.0]
+    _evaluate_rule_guards(mock_db, features_normal, n_breaches=3, m_recovery=3)
+
+    created_incidents = [call[0][0] for call in mock_db.add.call_args_list if call[0][0].__class__.__name__ == "Incident"]
+    assert len(created_incidents) == 1
+    inc = created_incidents[0]
+    assert inc.metric_name == "container.die"
+    assert inc.detection_source == "rule"
+    assert inc.affected_service == "demo-app"
+
+    # Watermark advanced to 51
+    assert get_last_seen_event_id() == 51

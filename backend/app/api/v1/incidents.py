@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -50,6 +51,46 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)):
     incident_detail.logs = logs
     incident_detail.events = events
     incident_detail.source_notes = source_notes
+
+    # Attach latest persisted AI analysis if available
+    from app.models.models import AIAnalysis
+    from app.schemas import RcaResult, KnowledgeSource, SupportingEvidence
+
+    latest_analysis = (
+        db.query(AIAnalysis)
+        .filter(AIAnalysis.incident_id == incident_id, AIAnalysis.status == "success")
+        .order_by(AIAnalysis.id.desc())
+        .first()
+    )
+    if latest_analysis and latest_analysis.response_json:
+        rj = latest_analysis.response_json
+        incident_detail.analysis = RcaResult(
+            incident_summary=rj.get("summary") or rj.get("incident_summary", ""),
+            probable_root_cause=rj.get("probable_cause") or rj.get("probable_root_cause", ""),
+            confidence=rj.get("confidence", "medium"),
+            supporting_evidence=[
+                SupportingEvidence(
+                    text=e.get("text", "") if isinstance(e, dict) else str(e),
+                )
+                for e in rj.get("supporting_evidence", [])
+            ],
+            affected_components=rj.get("affected_components", []),
+            impact=rj.get("impact", ""),
+            recommended_investigation=rj.get("recommended_investigation", []),
+            possible_remediation=rj.get("possible_remediation", []),
+            alternative_causes=rj.get("alternative_causes", []),
+            knowledge_sources=[
+                KnowledgeSource(
+                    title=ks.get("title", ""),
+                    section=ks.get("section"),
+                    score=ks.get("score"),
+                )
+                for ks in rj.get("knowledge_sources", [])
+            ],
+            model=latest_analysis.model_used or "gemini-1.5-flash",
+            created_at=latest_analysis.created_at or datetime.utcnow(),
+        )
+
     return incident_detail
 
 @router.patch("/{incident_id}/status", response_model=IncidentSchema)

@@ -559,19 +559,31 @@ export const IncidentsList: React.FC = () => {
                           <SeverityBadge severity={incident.severity} />
                         </td>
                         <td style={{ padding: '12px 16px' }}>
-                          <Link
-                            to={`/incidents/${incident.id}`}
-                            style={{
-                              color: '#ffffff',
-                              fontWeight: 600,
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            {incident.title}
-                          </Link>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <Link
+                              to={`/incidents/${incident.id}`}
+                              style={{
+                                color: '#ffffff',
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              {incident.title}
+                            </Link>
+                            {(incident.metricName === 'anomaly_score' || incident.detectionSource === 'ml') && (
+                              <Badge variant="info" size="sm">
+                                Flagged by: ML Anomaly Detector
+                              </Badge>
+                            )}
+                            {incident.detectionSource === 'rule' && (
+                              <Badge variant="warning" size="sm">
+                                Rule Guard
+                              </Badge>
+                            )}
+                          </div>
                           <div style={{ fontSize: '0.6875rem', color: 'var(--color-text-muted)' }}>
                             ID: #{incident.id} • Root metric: {incident.metricName}
                           </div>

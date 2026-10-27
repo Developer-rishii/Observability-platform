@@ -100,6 +100,7 @@ export interface Incident {
   metricValue: number;
   threshold: number;
   anomalyScore?: number | null;
+  detectionSource?: string | null;
   detectedAt: string;
   resolvedAt?: string | null;
   windowStart?: string | null;

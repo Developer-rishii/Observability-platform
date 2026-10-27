@@ -1,0 +1,45 @@
+{
+  "model_version": "iforest-v1.0",
+  "algorithm": "IsolationForest",
+  "n_estimators": 150,
+  "features": [
+    "cpu_pct_mean_5m",
+    "cpu_pct_std_5m",
+    "latency_p95_mean_5m",
+    "latency_p95_std_5m",
+    "error_rate_5m",
+    "request_rate_mean_5m",
+    "container_die_count_15m",
+    "data_dir_growth_5m"
+  ],
+  "threshold": 0.7287,
+  "threshold_p99_5": 0.7087,
+  "feature_means": {
+    "cpu_pct_mean_5m": 5.403573490368332,
+    "cpu_pct_std_5m": 3.426000100439794,
+    "latency_p95_mean_5m": 0.011537531152261974,
+    "latency_p95_std_5m": 0.002842811322837854,
+    "error_rate_5m": 0.0,
+    "request_rate_mean_5m": 5.156468642104307,
+    "container_die_count_15m": 0.21818181818181817,
+    "data_dir_growth_5m": 0.0
+  },
+  "feature_stds": {
+    "cpu_pct_mean_5m": 6.946674287309536,
+    "cpu_pct_std_5m": 10.342509136133756,
+    "latency_p95_mean_5m": 0.006225950197323939,
+    "latency_p95_std_5m": 0.008368141705967395,
+    "error_rate_5m": 1.0,
+    "request_rate_mean_5m": 0.01588486172271051,
+    "container_die_count_15m": 0.4130115160582017,
+    "data_dir_growth_5m": 1.0
+  },
+  "model_sha256": "0462cea97417b9a4d50a58c12c3a02166e9a866f4e78408541432ca84fbb1995",
+  "validation_samples": 96,
+  "false_alarm_rate_pct": 0.0,
+  "nominal_scales": {
+    "error_rate_5m": 5.0,
+    "data_dir_growth_5m": 26214400.0,
+    "container_die_count_15m": 1.0
+  }
+}

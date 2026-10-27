@@ -91,7 +91,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     LOKI_URL: str = "http://loki:3100"
     AGENT_SHARED_SECRET: str = "supersecretagentkey123"
-    MODEL_PATH: str = "/models/isolation_forest.pkl"
+    MODEL_PATH: str = "/models"
+    DETECTION_MODE: str = "ml"
     ANOMALY_THRESHOLD: float = 0.95
     CORRELATION_WINDOW_MINUTES: int = 15
     QDRANT_URL: str = "http://qdrant:6333"

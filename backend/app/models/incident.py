@@ -31,6 +31,7 @@ class Incident(Base):
     metric_value = Column(Float, nullable=False)
     threshold = Column(Float, nullable=False)
     anomaly_score = Column(Float, nullable=True)
+    detection_source = Column(String(50), nullable=True, default="threshold")
 
     # Time window
     detected_at = Column(DateTime, nullable=False, default=datetime.utcnow)

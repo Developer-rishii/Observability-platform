@@ -88,7 +88,9 @@ export const incidentsApi = {
     return response.data;
   },
   analyzeWithAi: async (id: number): Promise<RcaAnalysis> => {
-    const response = await apiClient.post<RcaAnalysis>(`/ai/incidents/${id}/analyze`);
+    const response = await apiClient.post<RcaAnalysis>(`/ai/incidents/${id}/analyze`, undefined, {
+      timeout: 60000,
+    });
     // Enrich with client-side timestamp for display
     return { ...response.data, analyzedAt: new Date().toISOString() };
   },

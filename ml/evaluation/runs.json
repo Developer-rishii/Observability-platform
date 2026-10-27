@@ -1,0 +1,85 @@
+[
+  {
+    "run_id": "restart_docker_1",
+    "type": "docker_restart",
+    "start_utc": "2026-10-26T17:21:00Z",
+    "end_utc": "2026-10-26T17:21:20Z",
+    "description": "Backend container recreation for /traces mount"
+  },
+  {
+    "run_id": "restart_docker_2",
+    "type": "docker_restart",
+    "start_utc": "2026-10-26T17:30:10Z",
+    "end_utc": "2026-10-26T17:30:35Z",
+    "description": "Backend container restart for image rebuild parity"
+  },
+  {
+    "run_id": "restart_docker_3",
+    "type": "docker_restart",
+    "start_utc": "2026-10-26T17:43:40Z",
+    "end_utc": "2026-10-26T17:44:00Z",
+    "description": "Backend container restart with ./agent mount"
+  },
+  {
+    "run_id": "fault_cpu_stress_1",
+    "type": "fault_injection",
+    "scenario": "cpu_stress",
+    "duration_seconds": 45,
+    "start_utc": "2026-10-26T17:44:30Z",
+    "end_utc": "2026-10-26T17:45:20Z",
+    "description": "cpu-stress.ps1 -Duration 45"
+  },
+  {
+    "run_id": "fault_cpu_stress_2",
+    "type": "fault_injection",
+    "scenario": "cpu_stress",
+    "duration_seconds": 90,
+    "start_utc": "2026-10-26T17:45:30Z",
+    "end_utc": "2026-10-26T17:47:05Z",
+    "description": "cpu-stress.ps1 -Duration 90"
+  },
+  {
+    "run_id": "fault_cpu_stress_3",
+    "type": "fault_injection",
+    "scenario": "cpu_stress",
+    "duration_seconds": 120,
+    "start_utc": "2026-10-26T17:47:00Z",
+    "end_utc": "2026-10-26T17:49:05Z",
+    "description": "cpu-stress.ps1 -Duration 120"
+  },
+  {
+    "run_id": "fault_missing_pkl_fallback",
+    "type": "model_fallback_test",
+    "start_utc": "2026-10-26T17:51:00Z",
+    "end_utc": "2026-10-26T17:51:30Z",
+    "description": "Temporary removal of isolation_forest.pkl to verify fallback"
+  },
+  {
+    "run_id": "fault_latency_spike_1",
+    "type": "fault_injection",
+    "scenario": "latency_spike",
+    "duration_seconds": 45,
+    "start_utc": "2026-10-26T17:51:40Z",
+    "end_utc": "2026-10-26T17:52:30Z",
+    "description": "latency-spike.ps1 -Duration 45"
+  },
+  {
+    "run_id": "fault_latency_spike_2",
+    "type": "fault_injection",
+    "scenario": "latency_spike",
+    "duration_seconds": 90,
+    "start_utc": "2026-10-26T17:52:10Z",
+    "end_utc": "2026-10-26T17:53:50Z",
+    "incident_id": 311,
+    "description": "latency-spike.ps1 -Duration 90 (Triggered Incident #311)"
+  },
+  {
+    "run_id": "fault_disk_fill_1",
+    "type": "fault_injection",
+    "scenario": "disk_fill",
+    "size_mb": 50,
+    "start_utc": "2026-10-26T18:01:15Z",
+    "end_utc": "2026-10-26T18:01:30Z",
+    "description": "disk-fill.ps1 -SizeMb 50 and immediate -Clear"
+  }
+]
