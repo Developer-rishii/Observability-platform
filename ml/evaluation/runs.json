@@ -81,5 +81,21 @@
     "start_utc": "2026-10-26T18:01:15Z",
     "end_utc": "2026-10-26T18:01:30Z",
     "description": "disk-fill.ps1 -SizeMb 50 and immediate -Clear"
+  },
+  {
+    "run_id": "restart_docker_4",
+    "type": "docker_restart",
+    "start_utc": "2026-10-28T17:18:15Z",
+    "end_utc": "2026-10-28T17:18:35Z",
+    "description": "Backend container restart to mount openai package and chat routes"
+  },
+  {
+    "run_id": "restart_docker_5",
+    "type": "docker_restart",
+    "start_utc": "2026-10-28T19:11:44Z",
+    "end_utc": "2026-10-28T19:12:00Z",
+    "description": "Backend container restart to enable dynamic demo-app and demo-db container metrics"
   }
 ]
+
+

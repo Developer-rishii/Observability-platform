@@ -94,6 +94,22 @@ export const incidentsApi = {
     // Enrich with client-side timestamp for display
     return { ...response.data, analyzedAt: new Date().toISOString() };
   },
+  getChatStatus: async (): Promise<{ configured: boolean; model: string }> => {
+    const response = await apiClient.get<{ configured: boolean; model: string }>('/ai/chat/status');
+    return response.data;
+  },
+  chatWithAi: async (
+    id: number,
+    payload: { message: string; history?: { role: string; content: string }[] },
+    signal?: AbortSignal
+  ): Promise<{ answer: string; usedAnalysis: boolean; contextSummary: string }> => {
+    const response = await apiClient.post<{ answer: string; usedAnalysis: boolean; contextSummary: string }>(
+      `/ai/incidents/${id}/chat`,
+      payload,
+      { signal, timeout: 25000 }
+    );
+    return response.data;
+  },
 };
 
 export const alertsApi = {

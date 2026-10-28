@@ -24,6 +24,18 @@ JOB_ID = "detection_job"
 
 scheduler: Optional[BackgroundScheduler] = None
 
+# Human-readable labels for top anomalous ML features
+FEATURE_TITLES: Dict[str, str] = {
+    "latency_p95_std_5m": "Latency Spike (P95 Variance)",
+    "latency_p95_mean_5m": "High Latency (P95 Mean)",
+    "cpu_pct_mean_5m": "CPU Stress (High Utilization)",
+    "cpu_pct_std_5m": "CPU Fluctuation (High Variance)",
+    "error_rate_5m": "HTTP Error Storm (5xx Rate)",
+    "request_rate_mean_5m": "Traffic Anomaly (Unusual Request Rate)",
+    "container_die_count_15m": "Container Restarts / Crashes",
+    "data_dir_growth_5m": "Rapid Storage Growth (Disk Fill)",
+}
+
 # Initialize ML Anomaly Detector
 detector: AnomalyDetector = AnomalyDetector(model_dir=getattr(settings, "MODEL_PATH", "/models"))
 _ml_initialized: bool = False
@@ -301,6 +313,7 @@ def _evaluate_rule_guards(
                     detection_source="rule",
                     anomaly_score=None,
                     affected_metrics=[error_metric],
+                    title=f"Rule Guard: High Error Rate ({error_val:.1f}%) on demo-app",
                 )
                 logger.info(f"Opened Rule Guard incident for {error_metric}: {error_val:.2f}% > {error_threshold:.2f}%")
         else:
@@ -346,6 +359,7 @@ def _evaluate_rule_guards(
                     detection_source="rule",
                     anomaly_score=None,
                     affected_metrics=[growth_metric],
+                    title=f"Rule Guard: Rapid Storage Growth ({growth_val / (1024 * 1024):.1f}MB / 5m)",
                 )
                 logger.info(f"Opened Rule Guard incident for {growth_metric}: {growth_val} bytes")
         else:
@@ -388,6 +402,7 @@ def _evaluate_rule_guards(
                     detection_source="rule",
                     anomaly_score=None,
                     affected_metrics=[ev.event_type],
+                    title=f"Rule Guard: Container Crash ({ev.event_type}) on {c_name}",
                 )
                 # Auto-resolve definition: Event-based incidents represent point-in-time state transitions;
                 # auto-resolve after 3 consecutive normal cycles (m_recovery) where no new die/oom events occur.
@@ -505,6 +520,11 @@ def _run_ml_detection_cycle(db: Any, n_breaches: int, m_recovery: int) -> bool:
             if state["breach_count"] >= n_breaches:
                 severity = "critical" if score > (threshold + 0.1) else "high"
                 affected_names = [f["name"] for f in top_features]
+                top_signal_name = affected_names[0] if affected_names else "telemetry"
+                signal_label = FEATURE_TITLES.get(top_signal_name)
+                if not signal_label:
+                    signal_label = f"{top_signal_name.replace('_', ' ').title()} Deviation"
+                inc_title = f"High Anomaly: {signal_label}"
                 desc = (
                     f"ML Anomaly detected (score: {score:.4f} >= threshold: {threshold:.4f}). "
                     f"Top contributing signals: {', '.join(affected_names)}."
@@ -521,6 +541,7 @@ def _run_ml_detection_cycle(db: Any, n_breaches: int, m_recovery: int) -> bool:
                     detection_source="ml",
                     anomaly_score=score,
                     affected_metrics=affected_names,
+                    title=inc_title,
                 )
                 decision = "opened_incident"
                 logger.info(
@@ -615,6 +636,18 @@ def _run_static_detection_cycle(db: Any, n_breaches: int, m_recovery: int) -> No
 
         if should_open and not has_open_incident:
             severity = calculate_severity(value, threshold, inverse=inverse, is_count=is_count)
+            STATIC_TITLES = {
+                "cpu": "High CPU Utilization Breach",
+                "memory": "High Memory Utilization Breach",
+                "disk": "High Disk Space Breach",
+                "latency_p95": "High Latency (P95) Breach",
+                "error_rate": "High HTTP Error Rate Breach",
+                "container_restart": "Container Restart Breach",
+                "demo_data_dir_bytes": "Data Directory Storage Breach",
+            }
+            s_title = STATIC_TITLES.get(metric, f"High {metric} breach")
+            if server_id:
+                s_title += f" on server {server_id}"
             create_incident(
                 db=db,
                 metric_name=metric,
@@ -625,6 +658,7 @@ def _run_static_detection_cycle(db: Any, n_breaches: int, m_recovery: int) -> No
                 severity=severity,
                 detection_source="threshold",
                 affected_metrics=[metric],
+                title=s_title,
             )
             logger.info(
                 f"Opened incident for {metric} (server: {server_id}): observed {value:.2f} > threshold {threshold:.2f} "

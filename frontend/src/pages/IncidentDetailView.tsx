@@ -192,10 +192,14 @@ export const IncidentDetailView: React.FC = () => {
                   Telemetry Anomaly Signature
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  Correlated window: {incident.metricName} breached threshold ({incident.threshold}%)
+                  Correlated window: {incident.metricName} breached threshold ({incident.metricName === 'anomaly_score' || (incident as any).detectionSource === 'ml' ? incident.threshold.toFixed(4) : `${incident.threshold}%`})
                 </span>
               </div>
-              <Badge variant="warning">{incident.metricValue.toFixed(1)}% Peak</Badge>
+              <Badge variant="warning">
+                {incident.metricName === 'anomaly_score' || (incident as any).detectionSource === 'ml'
+                  ? `${incident.metricValue.toFixed(4)} Peak`
+                  : `${incident.metricValue.toFixed(1)}% Peak`}
+              </Badge>
             </div>
 
             <div style={{ height: '240px', width: '100%' }}>
