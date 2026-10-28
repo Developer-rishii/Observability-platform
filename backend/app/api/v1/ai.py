@@ -155,3 +155,152 @@ def analyze_incident(incident_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return rca
+
+
+# ---------------------------------------------------------------------------
+# Ask AI Incident Chat (OpenAI)
+# ---------------------------------------------------------------------------
+from app.api.deps import get_current_user
+from app.models.models import User
+from app.schemas import (
+    IncidentChatRequest,
+    IncidentChatResponse,
+    IncidentChatStatus,
+)
+from app.services.ai.openai_chat import (
+    get_chat_provider,
+    OpenAIChatError,
+    OpenAIChatDisabledError,
+    OpenAIChatAuthError,
+    OpenAIChatRateLimitError,
+    OpenAIChatTimeoutError,
+)
+from app.services.ai.chat_context_builder import (
+    build_chat_context,
+    build_system_prompt,
+)
+
+# In-memory rate limiting:
+# 1 request per 2 seconds per user/incident
+# max 30 requests per hour per user/incident
+_chat_rate_limits: Dict[str, List[float]] = {}
+
+
+def _check_chat_rate_limit(key: str):
+    """Enforce 1 req / 2s and 30 req / 3600s."""
+    now = time.time()
+    history = _chat_rate_limits.get(key, [])
+    # Evict timestamps older than 1 hour
+    history = [t for t in history if now - t < 3600]
+
+    if history:
+        # Check 2-second cooldown
+        last_req = history[-1]
+        if now - last_req < 2.0:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded: please wait at least 2 seconds between questions.",
+            )
+        # Check hourly cap
+        if len(history) >= 30:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Hourly rate limit exceeded: maximum 30 questions per hour.",
+            )
+
+    history.append(now)
+    _chat_rate_limits[key] = history
+
+
+@router.get("/chat/status", response_model=IncidentChatStatus)
+def get_chat_status(current_user: User = Depends(get_current_user)):
+    """Check whether Ask AI chat is configured with an active API key."""
+    provider = get_chat_provider()
+    return IncidentChatStatus(
+        configured=provider.is_configured(),
+        model=getattr(provider, "model", "qwen/qwen3.8-27b"),
+    )
+
+
+@router.post("/incidents/{incident_id}/chat", response_model=IncidentChatResponse)
+def chat_with_incident_ai(
+    incident_id: int,
+    payload: IncidentChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    POST /api/v1/ai/incidents/{incident_id}/chat
+    Interactive Ask AI conversation anchored strictly to that incident's data.
+    """
+    provider = get_chat_provider()
+    if not provider.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI chat is disabled or not configured.",
+        )
+
+    # 1. Input message validation
+    msg = (payload.message or "").strip()
+    if not msg:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Message cannot be empty.",
+        )
+    if len(msg) > 500:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Message exceeds maximum allowed length of 500 characters.",
+        )
+
+    # 2. Rate limit check (keyed by user_id and incident_id)
+    rate_key = f"{current_user.id}:{incident_id}"
+    _check_chat_rate_limit(rate_key)
+
+    # 3. Load incident
+    incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if not incident:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Incident #{incident_id} not found.",
+        )
+
+    # 4. Context assembly
+    context_text, context_summary = build_chat_context(db, incident)
+    system_prompt = build_system_prompt(incident.id, context_text)
+
+    # 5. Sanitize and bound conversation history (keep last 6 turns, each max 1000 chars)
+    raw_history = payload.history or []
+    bounded_history: List[Dict[str, str]] = []
+    for h in raw_history[-6:]:
+        role = "assistant" if h.role == "assistant" else "user"
+        content = (h.content or "")[:1000]
+        bounded_history.append({"role": role, "content": content})
+
+    # Append current user question
+    bounded_history.append({"role": "user", "content": msg})
+
+    # Check whether a stored analysis exists
+    stored_rca = db.query(AIAnalysis).filter(AIAnalysis.incident_id == incident.id).first()
+    used_analysis = stored_rca is not None and stored_rca.response_json is not None
+
+    # 6. Call OpenAI via Provider
+    try:
+        answer = provider.generate(system_prompt, bounded_history)
+    except OpenAIChatDisabledError as exc:
+        raise HTTPException(status_code=503, detail="AI chat is disabled or not configured.")
+    except OpenAIChatAuthError as exc:
+        raise HTTPException(status_code=503, detail="AI chat is not configured.")
+    except OpenAIChatRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc) or "Rate limit exceeded from AI provider. Please wait a moment.")
+    except (OpenAIChatTimeoutError, OpenAIChatError) as exc:
+        raise HTTPException(status_code=503, detail="AI chat temporarily unavailable.")
+    except Exception as exc:
+        logger.error(f"Unexpected chat failure for incident {incident_id}: {exc}", exc_info=True)
+        raise HTTPException(status_code=503, detail="AI chat temporarily unavailable.")
+
+    return IncidentChatResponse(
+        answer=answer,
+        used_analysis=used_analysis,
+        context_summary=context_summary,
+    )

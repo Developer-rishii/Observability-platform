@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     ANALYSIS_COOLDOWN_SECONDS: int = 60
 
     # ------------------------------------------------------------------ #
+    # AI / OpenAI Chat                                                     #
+    # ------------------------------------------------------------------ #
+    OPENAI_API_KEY: str = ""
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+    OPENAI_TIMEOUT_SECONDS: int = 20
+    OPENAI_MAX_OUTPUT_TOKENS: int = 400
+
+    # ------------------------------------------------------------------ #
     # RAG / Retrieval                                                      #
     # ------------------------------------------------------------------ #
     RAG_TOP_K: int = 5

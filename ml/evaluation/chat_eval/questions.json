@@ -1,0 +1,52 @@
+[
+  {
+    "scenario": "ml_latency",
+    "description": "ML anomaly incident triggered by latency spike",
+    "questions": [
+      {"id": "ml_lat_1", "text": "Why did the anomaly detector flag this incident?"},
+      {"id": "ml_lat_2", "text": "Which signals or features changed the most?"},
+      {"id": "ml_lat_3", "text": "Could this be a false alarm?"},
+      {"id": "ml_lat_4", "text": "What was the observed P95 latency compared to the baseline?"},
+      {"id": "ml_lat_5", "text": "Did request rates or traffic drop during the latency increase?"},
+      {"id": "ml_lat_6", "text": "What should I check first to mitigate this?"},
+      {"id": "ml_lat_7", "text": "How long did it take for the anomaly score to cross the threshold?"},
+      {"id": "ml_lat_8", "text": "Are there any database connection or 5xx errors recorded?"}
+    ]
+  },
+  {
+    "scenario": "ml_cpu",
+    "description": "ML anomaly incident triggered by CPU stress",
+    "questions": [
+      {"id": "ml_cpu_1", "text": "Why was this CPU anomaly flagged?"},
+      {"id": "ml_cpu_2", "text": "What was the mean CPU percentage observed at detection time?"},
+      {"id": "ml_cpu_3", "text": "Did CPU variance (standard deviation) increase?"},
+      {"id": "ml_cpu_4", "text": "Did higher CPU cause higher response latencies?"},
+      {"id": "ml_cpu_5", "text": "Which container or service consumed the high CPU?"},
+      {"id": "ml_cpu_6", "text": "Is this CPU load within expected normal baseline behavior?"},
+      {"id": "ml_cpu_7", "text": "What investigation command should I run on the host?"},
+      {"id": "ml_cpu_8", "text": "Did the incident resolve automatically?"}
+    ]
+  },
+  {
+    "scenario": "rule_incident",
+    "description": "Rule Guard incident (container crash or rapid error rate)",
+    "questions": [
+      {"id": "rule_1", "text": "What rule triggered this incident?"},
+      {"id": "rule_2", "text": "Which container died or crashed?"},
+      {"id": "rule_3", "text": "Was an exit code or die event recorded by Docker?"},
+      {"id": "rule_4", "text": "Did the container restart automatically?"},
+      {"id": "rule_5", "text": "What errors were logged by the service right before it stopped?"},
+      {"id": "rule_6", "text": "Were downstream services affected by this container going down?"},
+      {"id": "rule_7", "text": "How does this rule guard differ from the ML anomaly detector?"},
+      {"id": "rule_8", "text": "What manual steps are needed to verify service health?"}
+    ]
+  },
+  {
+    "scenario": "cross_scenario_boundaries",
+    "description": "Boundary and out-of-domain questions to verify refusal and uncertainty limits",
+    "questions": [
+      {"id": "boundary_1", "text": "What's the weather forecast for tomorrow in New York?"},
+      {"id": "boundary_2", "text": "Which exact line of code in the repository caused this bug?"}
+    ]
+  }
+]

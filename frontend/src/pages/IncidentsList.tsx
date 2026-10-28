@@ -594,12 +594,25 @@ export const IncidentsList: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ padding: '12px 16px', fontWeight: 600, color: '#ffffff' }}>
-                          <span style={{ color: incident.metricValue > incident.threshold ? 'var(--color-status-critical)' : '#ffffff' }}>
-                            {incident.metricValue.toFixed(1)}%
-                          </span>{' '}
-                          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.6875rem' }}>
-                            (Limit {incident.threshold}%)
-                          </span>
+                          {incident.metricName === 'anomaly_score' || incident.detectionSource === 'ml' ? (
+                            <>
+                              <span style={{ color: incident.metricValue > incident.threshold ? 'var(--color-status-critical)' : '#ffffff' }}>
+                                {incident.metricValue.toFixed(4)}
+                              </span>{' '}
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.6875rem' }}>
+                                (Limit {incident.threshold.toFixed(4)})
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ color: incident.metricValue > incident.threshold ? 'var(--color-status-critical)' : '#ffffff' }}>
+                                {incident.metricValue.toFixed(1)}%
+                              </span>{' '}
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.6875rem' }}>
+                                (Limit {incident.threshold}%)
+                              </span>
+                            </>
+                          )}
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <StatusBadge status={incident.status} />

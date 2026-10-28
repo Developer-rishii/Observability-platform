@@ -32,17 +32,27 @@ def create_incident(
     detection_source: Optional[str] = "threshold",
     anomaly_score: Optional[float] = None,
     affected_metrics: Optional[List[str]] = None,
+    title: Optional[str] = None,
 ) -> Incident:
     """Create a new incident and an associated alert for a threshold breach or ML anomaly."""
     if severity is None:
         severity = calculate_severity(metric_value, threshold)
     
     server_label = f" on server {server_id}" if server_id else ""
-    title = f"High {metric_name} breach{server_label}"
+    if title:
+        inc_title = title
+    elif metric_name == "anomaly_score":
+        if affected_metrics:
+            first_m = affected_metrics[0].replace("_", " ").title()
+            inc_title = f"High Anomaly: {first_m} Deviation"
+        else:
+            inc_title = "High Anomaly: Multivariate Deviation"
+    else:
+        inc_title = f"High {metric_name} breach{server_label}"
     desc = description or f"{metric_name} exceeded threshold: {metric_value:.2f} > {threshold}"
 
     incident = Incident(
-        title=title,
+        title=inc_title,
         description=desc,
         severity=severity,
         status="open",

@@ -332,3 +332,28 @@ class ResetPasswordRequest(_Base):
 
 class MessageResponse(_Base):
     message: str
+
+
+# ---------------------------------------------------------------------------
+# Incident Chat (Ask AI)
+# ---------------------------------------------------------------------------
+
+class ChatHistoryMessage(_Base):
+    role: str  # user | assistant
+    content: str
+
+
+class IncidentChatRequest(_Base):
+    message: str  # max 500 characters
+    history: List[ChatHistoryMessage] = []
+
+
+class IncidentChatResponse(_Base):
+    answer: str
+    used_analysis: bool
+    context_summary: str
+
+
+class IncidentChatStatus(_Base):
+    configured: bool
+    model: str
