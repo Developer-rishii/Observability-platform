@@ -23,6 +23,7 @@
 | **Feature Dimensionality** | `8 telemetry features` (7 PromQL queries, 1 Docker DB query) | `backend/app/services/ml/features.py` |
 | **Zero-Variance Features** | `error_rate_5m` ($0.0$), `data_dir_growth_5m` ($0.0$) | Handled by nominal scale ($1.0\%$, $10\text{MB/s}$) & Rule Guards |
 | **RAG Runbook Points** | `60 vector chunks` in Qdrant collection `incident_knowledge_base` | `qdrant-vector-rag:6333` |
+| **Database Tables & Scale** | `14 tables` (125,624 Docker events, 33 incidents, 59 AI RCAs) | PostgreSQL `db:5432` (`0004_detection_source`) |
 | **Total Test Suite** | `126 passed backend tests` across 16 test suites | `backend/tests/` |
 
 ---

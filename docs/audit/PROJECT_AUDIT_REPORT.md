@@ -298,28 +298,35 @@ flowchart TD
     REC_CHECK -- No --> WAIT_REC[Wait Next Tick<br/>Log 'recovery_count_N']
 ```
 
-### 3.3 Database Schema and Alembic Migration History
-The database schema is managed via PostgreSQL 15 and Alembic with 13 tables:
-- **`incidents`**: Central incident record (`id`, `title`, `description`, `severity`, `status`, `metric_name`, `metric_value`, `threshold`, `anomaly_score`, `detection_source`, `detected_at`, `resolved_at`, `affected_metrics`).
-- **`alerts`**: Sub-alerts attached to incidents (`rule_name`, `threshold`, `value`, `status`, `triggered_at`).
-- **`events`**: System and container lifecycle events ingested from Docker (`client_event_id`, `event_type`, `severity`, `payload`, `timestamp`).
-- **`incident_events`**: Cross-reference correlation table linking events to incidents.
-- **`incident_logs`**: Captured log evidence snippets linked to incidents.
-- **`ai_analyses`**: Stored AI RCA analyses (`incident_id`, `prompt`, `response_json`, `confidence`, `status`, `created_at`).
-- **`servers`**: Monitored host machines and nodes (`hostname`, `ip_address`, `status`, `cpu_pct`, `mem_pct`).
-- **`services`**: Monitored service catalog definitions.
-- **`users`**: Platform user accounts (`email`, `hashed_password`, `full_name`, `is_active`, `is_admin`, `is_verified`).
-- **`verification_tokens`** & **`password_reset_tokens`**: Authentication lifecycle tracking.
-- **`knowledge_documents`**: Runbook document indexing metadata.
-- **`system_configurations`**: Runtime override parameters.
+### 3.3 Database Schema and Live Database Audit
+The database is managed via PostgreSQL 15 and Alembic. A live inspection of the PostgreSQL instance (`db:5432`) reveals **14 tables** (13 application tables + 1 Alembic tracking table) with **125,700+ total records**:
 
-**Alembic Migration Chain (Current Head: `0004_detection_source`):**
-1. `0001_initial_schema`: Initial relational setup.
-2. `41cfb96dbef2`: Added `client_event_id` to `events` table to prevent duplicate ingestion.
-3. `407e38f80230`: Added structured `incidents` and `alerts` schemas.
+#### Complete Table Inventory & Live Row Counts
+
+| # | Table Name | Live Rows | Primary Purpose & Schema Highlights |
+|:---:|:---|:---:|:---|
+| **1** | **`events`** | **125,624** | High-frequency container lifecycle stream ingested via `events-agent` daemon. Columns: `id`, `server_id`, `event_type` (`die`, `stop`, `start`), `source`, `severity`, `payload` (JSON container metadata), `client_event_id` (SHA-256 deduplication hash), `timestamp`. |
+| **2** | **`ai_analyses`** | **59** | Stored AI Root-Cause Analyses (Gemini outputs). Columns: `id`, `incident_id` (FK $\to$ `incidents`), `prompt` (telemetry context + retrieved runbook chunks), `response` (markdown text), `response_json` (structured JSON with root cause, affected components, remediation bash commands), `confidence` (`low`/`medium`/`high`), `model_used`, `status`, `created_at`. |
+| **3** | **`incidents`** | **33** | Central incident records. Columns: `id`, `title`, `description`, `severity`, `status` (`investigating`/`resolved`), `detection_source` (`ml`/`rule`/`threshold`), `anomaly_score`, `threshold`, `metric_name`, `metric_value`, `affected_service`, `affected_metrics` (JSON Z-scores of top 3 features), `detected_at`, `resolved_at`, `window_start`, `window_end`, `server_id`. |
+| **4** | **`alerts`** | **33** | Individual alert breaches linked to incidents. Columns: `id`, `incident_id` (FK), `rule_name`, `metric_name`, `threshold`, `value`, `status`, `triggered_at`, `created_at`. |
+| **5** | **`users`** | **4** | User accounts & RBAC. Columns: `id`, `email`, `hashed_password` (bcrypt), `full_name`, `is_active`, `is_admin` (Super Admin flag), `is_verified`, `created_at`. |
+| **6** | **`verification_tokens`** | **3** | Cryptographic tokens for email registration verification (`user_id`, `token_hash`, `expires_at`, `used`). |
+| **7** | **`password_reset_tokens`** | **1** | Single-use password reset tokens (`user_id`, `token_hash`, `expires_at`, `used`). |
+| **8** | **`alembic_version`** | **1** | Migration state tracker. Contains current active revision string: `0004_detection_source`. |
+| **9** | **`incident_events`** | **0** | Many-to-many junction table mapping specific Docker events to an incident (`incident_id`, `event_id`). |
+| **10** | **`incident_logs`** | **0** | Junction table mapping log stream excerpts to an incident (`incident_id`, `log_line`, `timestamp`). |
+| **11** | **`knowledge_documents`** | **0** | Relational catalog for runbook texts. *(Note: Active operational embeddings reside directly in the Qdrant vector database: 60 runbook chunks in `incident_knowledge_base`).* |
+| **12** | **`servers`** | **0** | Onboarded external host machine inventory for multi-node setups (`hostname`, `ip_address`, `os_info`, `status`). |
+| **13** | **`services`** | **0** | Catalog of registered microservices linked to server IDs (`server_id`, `name`, `service_type`, `status`). |
+| **14** | **`system_configurations`** | **0** | Key-value store for runtime override flags (`key`, `value`, `updated_at`). |
+
+#### Alembic Migration Chain (Current Head: `0004_detection_source`)
+1. `0001_initial_schema`: Initial relational setup (users, servers, services, incidents, alerts, events).
+2. `41cfb96dbef2`: Added `client_event_id` column to `events` table with index for deduplication.
+3. `407e38f80230`: Structured `incidents` and `alerts` schemas with anomaly scoring columns.
 4. `0002_phase1_model_reconciliation`: Reconciled server and container relationships.
-5. `0003_auth_tokens`: Added email verification and password reset tables.
-6. `0004_detection_source` (HEAD): Added `detection_source` column (`ml`, `rule`, `threshold`) to `incidents` table.
+5. `0003_auth_tokens`: Added `verification_tokens` and `password_reset_tokens` tables.
+6. `0004_detection_source` (HEAD): Added `detection_source` column (`ml`, `rule`, `threshold`) to `incidents` table to distinguish unsupervised ML triggers from deterministic rule guard breaches.
 
 
 ---
