@@ -1,0 +1,21 @@
+1. Database Stop (Trigger Error Rate Incident)
+powershell -ExecutionPolicy Bypass -File infrastructure/scripts/db-stop.ps1 -PauseSeconds 50
+Creates: High error_rate breach
+
+2. CPU Stress (Trigger CPU Incident)
+powershell -ExecutionPolicy Bypass -File infrastructure/scripts/cpu-stress.ps1 -Duration 45
+Creates: High cpu breach
+
+3. Container Restart (Trigger Docker Restart Incident)
+docker restart demo-app; Start-Sleep -Seconds 10; docker restart demo-app
+Creates: High container_restart breach
+(Note: container-crash.ps1 demonstrates abrupt SIGKILL and logs events in the Events tab; the command above creates the restart incident).
+
+4. Latency Spike (Trigger Latency Incident)
+powershell -ExecutionPolicy Bypass -File infrastructure/scripts/latency-spike.ps1 -LatencyMs 2000 -Duration 50
+Creates: High latency_p95 breach
+
+5. Disk Fill (Trigger Storage Incident)
+powershell -ExecutionPolicy Bypass -File infrastructure/scripts/disk-fill.ps1 -SizeMb 150
+Creates: High demo_data_dir_bytes breach
+(Clean up afterwards with: powershell -ExecutionPolicy Bypass -File infrastructure/scripts/disk-fill.ps1 -Clear)
