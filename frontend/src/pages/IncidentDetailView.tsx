@@ -192,10 +192,14 @@ export const IncidentDetailView: React.FC = () => {
                   Telemetry Anomaly Signature
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  Correlated window: {incident.metricName} breached threshold ({incident.threshold}%)
+                  Correlated window: {incident.metricName} breached threshold ({incident.metricName === 'anomaly_score' || (incident as any).detectionSource === 'ml' ? incident.threshold.toFixed(4) : `${incident.threshold}%`})
                 </span>
               </div>
-              <Badge variant="warning">{incident.metricValue.toFixed(1)}% Peak</Badge>
+              <Badge variant="warning">
+                {incident.metricName === 'anomaly_score' || (incident as any).detectionSource === 'ml'
+                  ? `${incident.metricValue.toFixed(4)} Peak`
+                  : `${incident.metricValue.toFixed(1)}% Peak`}
+              </Badge>
             </div>
 
             <div style={{ height: '240px', width: '100%' }}>
@@ -262,8 +266,14 @@ export const IncidentDetailView: React.FC = () => {
                 <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{incident.metricName}</span>
               </div>
               <div>
-                <span style={{ color: 'var(--color-text-muted)', display: 'block', fontSize: '0.75rem' }}>Anomaly Score</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>{incident.anomalyScore ? incident.anomalyScore.toFixed(3) : '0.920'} (Isolation Forest)</span>
+                <span style={{ color: 'var(--color-text-muted)', display: 'block', fontSize: '0.75rem' }}>Detection Method</span>
+                <span style={{ color: '#ffffff', fontWeight: 600 }}>
+                  {incident.detectionSource === 'rule'
+                    ? 'Rule Guard'
+                    : incident.metricName === 'anomaly_score' || incident.detectionSource === 'ml'
+                    ? 'Isolation Forest (ML)'
+                    : 'Static Threshold'}
+                </span>
               </div>
               <div>
                 <span style={{ color: 'var(--color-text-muted)', display: 'block', fontSize: '0.75rem' }}>Detected At</span>
@@ -271,10 +281,64 @@ export const IncidentDetailView: React.FC = () => {
               </div>
             </div>
 
+            {/* Anomaly Score Progress Bar */}
+            {typeof incident.anomalyScore === 'number' && (
+              <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                    Anomaly Score vs. Threshold
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#ffffff', fontWeight: 700 }}>
+                    <span style={{ color: incident.anomalyScore >= incident.threshold ? 'var(--color-status-critical)' : 'var(--color-status-healthy)' }}>
+                      {incident.anomalyScore.toFixed(4)}
+                    </span>
+                    <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}> / {incident.threshold.toFixed(4)}</span>
+                  </span>
+                </div>
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    height: '8px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${Math.min(100, Math.max(0, (incident.anomalyScore / 1.0) * 100))}%`,
+                      backgroundColor:
+                        incident.anomalyScore >= incident.threshold
+                          ? 'var(--color-status-critical)'
+                          : 'var(--color-primary)',
+                      borderRadius: '4px',
+                      transition: 'width 0.4s ease-out',
+                    }}
+                  />
+                  {/* Threshold indicator marker */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      bottom: 0,
+                      left: `${Math.min(100, Math.max(0, (incident.threshold / 1.0) * 100))}%`,
+                      width: '2px',
+                      backgroundColor: '#ffffff',
+                      boxShadow: '0 0 4px rgba(255, 255, 255, 0.8)',
+                    }}
+                    title={`Threshold: ${incident.threshold.toFixed(4)}`}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Top Contributing Signals */}
             {incident.affectedMetrics?.length > 0 && (
               <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--color-border-subtle)' }}>
                 <span style={{ color: 'var(--color-text-muted)', display: 'block', fontSize: '0.75rem', marginBottom: '6px' }}>
-                  Multi-Metric Correlation Blast Radius
+                  Top Contributing Signals
                 </span>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {incident.affectedMetrics.map((m) => (

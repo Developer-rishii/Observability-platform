@@ -151,6 +151,11 @@ export const InfrastructurePage: React.FC = () => {
 
   useEffect(() => {
     loadInfrastructure();
+    // Auto-refresh dynamic containers and nodes every 10 seconds
+    const interval = setInterval(() => {
+      loadInfrastructure();
+    }, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Sync internal search input with URL param changes

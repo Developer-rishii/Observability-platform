@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     ANALYSIS_COOLDOWN_SECONDS: int = 60
 
     # ------------------------------------------------------------------ #
+    # AI / OpenAI Chat                                                     #
+    # ------------------------------------------------------------------ #
+    OPENAI_API_KEY: str = ""
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+    OPENAI_TIMEOUT_SECONDS: int = 20
+    OPENAI_MAX_OUTPUT_TOKENS: int = 400
+
+    # ------------------------------------------------------------------ #
     # RAG / Retrieval                                                      #
     # ------------------------------------------------------------------ #
     RAG_TOP_K: int = 5
@@ -91,7 +99,8 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     LOKI_URL: str = "http://loki:3100"
     AGENT_SHARED_SECRET: str = "supersecretagentkey123"
-    MODEL_PATH: str = "/models/isolation_forest.pkl"
+    MODEL_PATH: str = "/models"
+    DETECTION_MODE: str = "ml"
     ANOMALY_THRESHOLD: float = 0.95
     CORRELATION_WINDOW_MINUTES: int = 15
     QDRANT_URL: str = "http://qdrant:6333"

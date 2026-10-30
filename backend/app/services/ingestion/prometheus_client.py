@@ -63,9 +63,16 @@ def query_instant(query_or_metric: str) -> float | None:
         print(f"Prometheus query_instant error ({query_or_metric}): {e}")
         return None
 
-def query_range(metric: str, minutes: int) -> list[dict]:
+def query_range(
+    metric: str,
+    minutes: int = 15,
+    start_time: int | None = None,
+    end_time: int | None = None,
+) -> list[dict]:
     """
-    Query Prometheus for a given metric over the last `minutes`.
+    Query Prometheus for a given metric over a time range.
+    If start_time and end_time (unix epoch seconds) are provided, uses them directly.
+    Otherwise defaults to the last `minutes` up to now.
     Returns a list of points: [{'t': datetime, 'v': float}, ...]
     """
     prom_url = settings.PROMETHEUS_URL.rstrip('/')
@@ -73,9 +80,13 @@ def query_range(metric: str, minutes: int) -> list[dict]:
     
     query = _get_query_for_metric(metric)
     
-    end_time = int(time.time())
-    start_time = end_time - (minutes * 60)
-    step = max(15, (minutes * 60) // 100)  # max 100 points, minimum 15s step
+    if start_time is not None and end_time is not None:
+        duration_sec = max(1, end_time - start_time)
+        step = max(15, duration_sec // 100)
+    else:
+        end_time = int(time.time())
+        start_time = end_time - (minutes * 60)
+        step = max(15, (minutes * 60) // 100)  # max 100 points, minimum 15s step
     
     params = {
         "query": query,

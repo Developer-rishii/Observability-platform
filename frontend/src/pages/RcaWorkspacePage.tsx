@@ -19,12 +19,22 @@ import {
   Loader2,
   BarChart3,
   FileText,
+  Volume2,
+  VolumeX,
+  Pause,
+  Play,
+  Square,
+  ChevronDown,
+  MessageSquare,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { SeverityBadge, StatusBadge, Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { incidentsApi } from '../api/services';
 import type { IncidentDetail, RcaAnalysis } from '../types';
+import { useSpeech } from '../hooks/useSpeech';
+import { buildNarration } from '../utils/rcaNarration';
+import { IncidentChatTab } from '../components/IncidentChatTab';
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -213,7 +223,7 @@ const AlternativeCard: React.FC<{ text: string; index: number }> = ({ text, inde
 
 // ─── Tab definition ───────────────────────────────────────────────────────────
 
-type Tab = 'root-cause' | 'evidence' | 'investigation' | 'remediation' | 'alternatives';
+type Tab = 'root-cause' | 'evidence' | 'investigation' | 'remediation' | 'alternatives' | 'ask-ai';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'root-cause', label: 'Root Cause', icon: <AlertTriangle size={14} /> },
@@ -221,9 +231,32 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'investigation', label: 'Investigation', icon: <ListChecks size={14} /> },
   { id: 'remediation', label: 'Remediation', icon: <Wrench size={14} /> },
   { id: 'alternatives', label: 'Alternatives', icon: <GitBranch size={14} /> },
+  { id: 'ask-ai', label: 'Ask AI', icon: <MessageSquare size={14} /> },
 ];
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+
+// ─── RCA Pipeline Stepper & Activity Log ──────────────────────────────────────
+
+interface PipelineStep {
+  id: number;
+  label: string;
+  detail: string;
+}
+
+const PIPELINE_STEPS: PipelineStep[] = [
+  { id: 1, label: 'Loading incident context', detail: 'Verifying incident record, status, and active cooldown window' },
+  { id: 2, label: 'Collecting metrics, logs and events', detail: 'Synthesizing correlated telemetry signals and anomaly window' },
+  { id: 3, label: 'Retrieving related knowledge', detail: 'Searching vector database (Qdrant) for operational runbooks' },
+  { id: 4, label: 'Consulting AI model', detail: 'Synthesizing diagnostic prompt and querying Google Gemini' },
+  { id: 5, label: 'Compiling root-cause report', detail: 'Validating structured schema, evidence, and remediation advice' },
+];
+
+interface LogEntry {
+  id: string;
+  timeSec: number;
+  text: string;
+}
 
 export const RcaWorkspacePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -237,13 +270,69 @@ export const RcaWorkspacePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('root-cause');
   const [analysisHistory, setAnalysisHistory] = useState<{ ts: string; confidence: string }[]>([]);
 
+  // Stepper & Live Activity Log state
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [failedStepIndex, setFailedStepIndex] = useState<number | null>(null);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
+  const [showLogDrawer, setShowLogDrawer] = useState<boolean>(false);
+
+  // Narration / Audio Speech state
+  const speech = useSpeech();
+  const [showTranscript, setShowTranscript] = useState<boolean>(false);
+  const [showVoiceSelect, setShowVoiceSelect] = useState<boolean>(false);
+
+  const runIdRef = React.useRef<number>(0);
+  const stepTimersRef = React.useRef<number[]>([]);
+  const elapsedIntervalRef = React.useRef<number | null>(null);
+  const logContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const clearAllTimers = useCallback(() => {
+    stepTimersRef.current.forEach((t) => clearTimeout(t));
+    stepTimersRef.current = [];
+    if (elapsedIntervalRef.current) {
+      clearInterval(elapsedIntervalRef.current);
+      elapsedIntervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+      runIdRef.current += 1;
+    };
+  }, [clearAllTimers]);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
   const loadIncident = useCallback(async () => {
     if (!incidentId) return;
     try {
       setLoadingIncident(true);
       const data = await incidentsApi.getById(incidentId);
       setIncident(data);
-      if (data.analysis) setAnalysis(data.analysis as RcaAnalysis);
+      if (data.analysis) {
+        const raw = data.analysis as any;
+        setAnalysis({
+          summary: raw.summary || raw.incidentSummary || '',
+          probableCause: raw.probableCause || raw.probableRootCause || '',
+          confidence: raw.confidence || 'medium',
+          supportingEvidence: raw.supportingEvidence || raw.supporting_evidence || [],
+          affectedComponents: raw.affectedComponents || raw.affected_components || [],
+          impact: raw.impact || '',
+          recommendedInvestigation: raw.recommendedInvestigation || raw.recommended_investigation || [],
+          possibleRemediation: raw.possibleRemediation || raw.possible_remediation || [],
+          alternativeCauses: raw.alternativeCauses || raw.alternative_causes || [],
+          nextSteps: raw.nextSteps || raw.recommendedInvestigation || raw.recommended_investigation || [],
+          analyzedAt: raw.analyzedAt || raw.createdAt || new Date().toISOString(),
+        });
+      }
     } catch {
       /* handled below */
     } finally {
@@ -253,26 +342,135 @@ export const RcaWorkspacePage: React.FC = () => {
 
   useEffect(() => { loadIncident(); }, [loadIncident]);
 
+  const appendLog = useCallback((timeSec: number, text: string) => {
+    setLogs((prev) => [
+      ...prev,
+      { id: `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, timeSec, text },
+    ]);
+  }, []);
+
   const handleRunAnalysis = async () => {
     if (!incident) return;
+    speech.stop();
+    clearAllTimers();
+
+    const currentRunId = ++runIdRef.current;
+    setAnalyzing(true);
+    setAiError(null);
+    setFailedStepIndex(null);
+    setCompletedSteps([]);
+    setCurrentStepIndex(0);
+    setElapsedSec(0);
+
+    const startTime = Date.now();
+    const metricLabel = incident.metricName || 'telemetry';
+    const serviceName = incident.affectedService || 'host-system';
+    const correlatedList = incident.affectedMetrics && incident.affectedMetrics.length > 0
+      ? incident.affectedMetrics.join(', ')
+      : metricLabel;
+
+    const initialLogs: LogEntry[] = [
+      { id: '1', timeSec: 0, text: `Initiating AI diagnostic pipeline for incident #${incident.id}` },
+      { id: '2', timeSec: 0, text: `Target service: ${serviceName} | Detection source: ${incident.detectionSource || 'rule'}` },
+      { id: '3', timeSec: 0, text: `Loading incident metadata and checking analysis cooldown` },
+    ];
+    setLogs(initialLogs);
+
+    // Start elapsed-time timer
+    elapsedIntervalRef.current = window.setInterval(() => {
+      setElapsedSec((prev) => prev + 1);
+    }, 1000);
+
+    // Schedule progressive steps (1.5s, 4s, 5s)
+    const t1 = window.setTimeout(() => {
+      if (runIdRef.current !== currentRunId) return;
+      setCompletedSteps([0]);
+      setCurrentStepIndex(1);
+      const s = Math.floor((Date.now() - startTime) / 1000);
+      appendLog(s, `Incident context verified. Gathering telemetry signals`);
+      appendLog(s, `Correlated signals: ${correlatedList}`);
+    }, 1500);
+    stepTimersRef.current.push(t1);
+
+    const t2 = window.setTimeout(() => {
+      if (runIdRef.current !== currentRunId) return;
+      setCompletedSteps([0, 1]);
+      setCurrentStepIndex(2);
+      const s = Math.floor((Date.now() - startTime) / 1000);
+      appendLog(s, `Metric window compiled. Querying Qdrant for related runbooks`);
+    }, 5500);
+    stepTimersRef.current.push(t2);
+
+    const t3 = window.setTimeout(() => {
+      if (runIdRef.current !== currentRunId) return;
+      setCompletedSteps([0, 1, 2]);
+      setCurrentStepIndex(3);
+      const s = Math.floor((Date.now() - startTime) / 1000);
+      appendLog(s, `Consulting Gemini AI model with synthesized telemetry context`);
+      appendLog(s, `Awaiting model response (reasoning and root cause formulation)...`);
+    }, 10500);
+    stepTimersRef.current.push(t3);
+
     try {
-      setAnalyzing(true);
-      setAiError(null);
       const result = await incidentsApi.analyzeWithAi(incident.id);
+      if (runIdRef.current !== currentRunId) return;
+
+      clearAllTimers();
+      const s = Math.floor((Date.now() - startTime) / 1000);
+      setElapsedSec(s);
+
+      // Fast-forward remaining steps (about 150ms per step)
+      const currentIdx = currentStepIndex;
+      appendLog(s, `AI model response received. Compiling final root-cause report`);
+
+      if (result.confidence) {
+        appendLog(s, `Report validated: ${result.confidence.toUpperCase()} confidence`);
+      }
+      if (result.supportingEvidence && result.supportingEvidence.length > 0) {
+        appendLog(s, `Compiled ${result.supportingEvidence.length} evidence point(s) and remediation plan`);
+      }
+
+      for (let i = currentIdx; i < PIPELINE_STEPS.length; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        if (runIdRef.current !== currentRunId) return;
+        setCurrentStepIndex(i);
+        setCompletedSteps((prev) => Array.from(new Set([...prev, i])));
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (runIdRef.current !== currentRunId) return;
+
       setAnalysis(result);
+      setAnalyzing(false);
       setAnalysisHistory((prev) => [
         { ts: result.analyzedAt ?? new Date().toISOString(), confidence: result.confidence },
         ...prev,
       ]);
     } catch (err: any) {
+      if (runIdRef.current !== currentRunId) return;
+      clearAllTimers();
+      const s = Math.floor((Date.now() - startTime) / 1000);
+
       if (err.response?.status === 429) {
-        setAiError(err.response?.data?.detail || 'Analysis cooldown active. Please wait a moment before requesting diagnostics again.');
+        const detail = err.response?.data?.detail || 'Analysis was run recently.';
+        const retryAfter = err.response?.headers?.['retry-after'];
+        const message = retryAfter
+          ? `Analysis was run recently. Cooldown active: please retry in ${retryAfter}s.`
+          : detail;
+        setAiError(message);
+        appendLog(s, `[429] ${message}`);
+        setFailedStepIndex(0);
       } else if (err.response?.status === 503) {
-        setAiError(err.response?.data?.detail || 'AI service unavailable: LLM service could not be reached.');
+        const detail = err.response?.data?.detail || 'AI service unavailable: LLM service could not be reached.';
+        setAiError(detail);
+        appendLog(s, `[503] ${detail}`);
+        setFailedStepIndex(currentStepIndex >= 3 ? currentStepIndex : 3);
       } else {
-        setAiError(err.response?.data?.detail || 'AI Root-Cause Analysis failed. Please retry.');
+        const detail = err.response?.data?.detail || 'AI Root-Cause Analysis failed. Please retry.';
+        setAiError(detail);
+        appendLog(s, `[ERROR] ${detail}`);
+        setFailedStepIndex(currentStepIndex);
       }
-    } finally {
       setAnalyzing(false);
     }
   };
@@ -371,7 +569,16 @@ export const RcaWorkspacePage: React.FC = () => {
                 <Clock size={13} /> Detected {durationSince(incident.detectedAt)}
               </span>
               <span style={{ fontSize: '0.8125rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <BarChart3 size={13} /> {incident.metricName}: {incident.metricValue.toFixed(1)}% (threshold {incident.threshold}%)
+                <BarChart3 size={13} />{' '}
+                {incident.metricName === 'anomaly_score' || incident.detectionSource === 'ml' ? (
+                  <>
+                    {incident.metricName}: {incident.metricValue.toFixed(4)} (threshold {incident.threshold.toFixed(4)})
+                  </>
+                ) : (
+                  <>
+                    {incident.metricName}: {incident.metricValue.toFixed(1)}% (threshold {incident.threshold}%)
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -381,6 +588,7 @@ export const RcaWorkspacePage: React.FC = () => {
               size="sm"
               icon={analyzing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={14} />}
               isLoading={analyzing}
+              disabled={analyzing}
               onClick={handleRunAnalysis}
             >
               {analysis ? 'Re-run Analysis' : 'Run AI Analysis'}
@@ -404,8 +612,8 @@ export const RcaWorkspacePage: React.FC = () => {
         )}
       </div>
 
-      {/* AI Error banner */}
-      {aiError && (
+      {/* AI Error banner (shown only if stepper card is not mounted, e.g. when reviewing results) */}
+      {aiError && !analyzing && failedStepIndex === null && (
         <div
           style={{
             padding: '14px 16px',
@@ -420,7 +628,7 @@ export const RcaWorkspacePage: React.FC = () => {
           <AlertTriangle size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
           <div>
             <div style={{ fontWeight: 600, color: '#f59e0b', fontSize: '0.875rem', marginBottom: '4px' }}>
-              AI Analysis Unavailable
+              AI Analysis Notice
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
               {aiError}
@@ -430,7 +638,7 @@ export const RcaWorkspacePage: React.FC = () => {
       )}
 
       {/* Two-column body: sidebar + main panel */}
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 'var(--spacing-5)', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 'var(--spacing-5)', alignItems: 'start' }}>
 
         {/* ── Sidebar ───────────────────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
@@ -438,7 +646,43 @@ export const RcaWorkspacePage: React.FC = () => {
           {/* Analysis status */}
           <Card style={{ padding: 'var(--spacing-4)' }}>
             <SectionLabel>Analysis Status</SectionLabel>
-            {analysis ? (
+            {analyzing ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px',
+                    borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-primary-subtle)',
+                    border: '1px solid var(--color-border-focused)',
+                  }}
+                >
+                  <Loader2 size={16} color="var(--color-primary)" style={{ animation: 'spin 1s linear infinite' }} />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-primary)' }}>
+                    In progress
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                  {PIPELINE_STEPS[currentStepIndex]?.label}
+                </div>
+              </div>
+            ) : failedStepIndex !== null ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px',
+                    borderRadius: 'var(--radius-md)', backgroundColor: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                  }}
+                >
+                  <AlertTriangle size={16} color="var(--color-status-critical)" />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-status-critical)' }}>
+                    Analysis Failed
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
+                  Stopped at: {PIPELINE_STEPS[failedStepIndex]?.label}
+                </div>
+              </div>
+            ) : analysis ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div
                   style={{
@@ -453,7 +697,7 @@ export const RcaWorkspacePage: React.FC = () => {
                   </span>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                  Powered by Google Gemini. Results are AI-generated and advisory only.
+                  Powered by Google Gemini. Results are advisory only.
                 </div>
               </div>
             ) : (
@@ -575,8 +819,8 @@ export const RcaWorkspacePage: React.FC = () => {
         {/* ── Main panel ────────────────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
 
-          {/* Empty state */}
-          {!analysis && !analyzing && (
+          {/* Empty state: No analysis yet and not analyzing and not in error */}
+          {!analysis && !analyzing && failedStepIndex === null && (
             <Card glow="violet" style={{ border: '1px solid rgba(139,92,246,0.2)', padding: '48px 32px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px' }}>
                 <div
@@ -620,33 +864,281 @@ export const RcaWorkspacePage: React.FC = () => {
             </Card>
           )}
 
-          {/* Analyzing spinner */}
-          {analyzing && (
-            <Card style={{ padding: '48px 32px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px' }}>
-                <div style={{ position: 'relative' }}>
+          {/* Stepped Progress Indicator & Live Activity Log (Active run OR Failed state) */}
+          {(analyzing || failedStepIndex !== null) && (
+            <Card
+              glow={failedStepIndex !== null ? 'none' : 'cyan'}
+              style={{
+                padding: '28px 24px',
+                border: failedStepIndex !== null ? '1px solid rgba(239,68,68,0.3)' : '1px solid var(--color-border-focused)',
+              }}
+            >
+              {/* Stepper Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 600, color: '#ffffff' }}>
+                      {failedStepIndex !== null ? 'AI Analysis Interrupted' : 'Synthesizing Root Cause Diagnostics'}
+                    </h3>
+                    <Badge variant={failedStepIndex !== null ? 'critical' : 'info'}>
+                      {failedStepIndex !== null ? 'Halted' : 'Active'}
+                    </Badge>
+                  </div>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                    {failedStepIndex !== null
+                      ? 'The diagnostic pipeline stopped due to an error or cooldown window.'
+                      : 'Executing pipeline stages with live telemetry correlation.'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Elapsed Time</div>
+                    <div style={{ fontSize: '1.125rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--color-primary)' }}>
+                      {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+                    </div>
+                  </div>
+                  {failedStepIndex !== null && (
+                    <Button variant="primary" size="sm" icon={<RefreshCw size={13} />} onClick={handleRunAnalysis}>
+                      Retry Analysis
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Overall Progress Bar */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '6px' }}>
+                  <span>Pipeline Progress</span>
+                  <span style={{ fontFamily: 'monospace' }}>
+                    {failedStepIndex !== null
+                      ? Math.min(95, Math.max(15, (failedStepIndex + 1) * 20))
+                      : Math.min(95, Math.max(10, completedSteps.length * 18 + Math.min(25, elapsedSec * 1.5)))}%
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: '6px',
+                    width: '100%',
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    borderRadius: '3px',
+                    overflow: 'hidden',
+                  }}
+                >
                   <div
                     style={{
-                      width: '56px', height: '56px', borderRadius: '50%',
-                      border: '3px solid rgba(139,92,246,0.2)',
-                      borderTopColor: 'var(--color-primary)',
-                      animation: 'spin 1s linear infinite',
+                      height: '100%',
+                      width: `${
+                        failedStepIndex !== null
+                          ? Math.min(95, Math.max(15, (failedStepIndex + 1) * 20))
+                          : Math.min(95, Math.max(10, completedSteps.length * 18 + Math.min(25, elapsedSec * 1.5)))
+                      }%`,
+                      backgroundColor: failedStepIndex !== null ? 'var(--color-status-critical)' : 'var(--color-primary)',
+                      boxShadow: failedStepIndex !== null ? 'none' : '0 0 10px var(--color-primary-glow)',
+                      transition: 'width 0.4s ease-out, background-color 0.3s ease',
                     }}
                   />
-                  <Sparkles
-                    size={22}
-                    color="var(--color-primary)"
-                    style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                  />
                 </div>
-                <div>
-                  <div style={{ fontSize: '1rem', fontWeight: 600, color: '#ffffff', marginBottom: '6px' }}>
-                    Analyzing Incident…
+                {analyzing && elapsedSec >= 30 && (
+                  <div style={{ fontSize: '0.75rem', color: '#fbbf24', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Clock size={12} /> Model reasoning is taking longer than usual... Still working on incident #{incident.id}.
                   </div>
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: 1.5, maxWidth: '360px' }}>
-                    Synthesizing telemetry context and consulting the AI model.
-                    This may take 10–30 seconds.
+                )}
+              </div>
+
+              {/* Vertical Stepper */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  marginBottom: '24px',
+                }}
+                aria-live="polite"
+              >
+                {PIPELINE_STEPS.map((step, idx) => {
+                  const isDone = completedSteps.includes(idx);
+                  const isFailed = failedStepIndex === idx;
+                  const isActive = !isDone && !isFailed && currentStepIndex === idx && analyzing;
+
+                  let borderColor = 'var(--color-border-subtle)';
+                  let iconBg = 'rgba(255,255,255,0.04)';
+                  let iconColor = 'var(--color-text-muted)';
+                  let titleColor = 'var(--color-text-muted)';
+
+                  if (isDone) {
+                    borderColor = 'rgba(34,197,94,0.3)';
+                    iconBg = 'rgba(34,197,94,0.12)';
+                    iconColor = 'var(--color-status-healthy)';
+                    titleColor = '#ffffff';
+                  } else if (isFailed) {
+                    borderColor = 'rgba(239,68,68,0.4)';
+                    iconBg = 'rgba(239,68,68,0.15)';
+                    iconColor = 'var(--color-status-critical)';
+                    titleColor = '#ffffff';
+                  } else if (isActive) {
+                    borderColor = 'var(--color-border-focused)';
+                    iconBg = 'var(--color-primary-subtle)';
+                    iconColor = 'var(--color-primary)';
+                    titleColor = '#ffffff';
+                  }
+
+                  return (
+                    <div
+                      key={step.id}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: isActive ? 'rgba(6,182,212,0.04)' : isFailed ? 'rgba(239,68,68,0.04)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${borderColor}`,
+                        transition: 'all 0.25s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {/* Step Icon / Number Indicator */}
+                        <div
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            backgroundColor: iconBg,
+                            border: `1px solid ${iconColor}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            color: iconColor,
+                          }}
+                        >
+                          {isDone ? (
+                            <CheckCircle2 size={16} />
+                          ) : isFailed ? (
+                            <AlertTriangle size={15} />
+                          ) : isActive ? (
+                            <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{step.id}</span>
+                          )}
+                        </div>
+
+                        {/* Step Details */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: titleColor }}>
+                              {step.label}
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: isDone ? 'var(--color-status-healthy)' : isFailed ? 'var(--color-status-critical)' : isActive ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
+                              {isDone ? 'Completed' : isFailed ? 'Failed' : isActive ? 'Executing...' : 'Pending'}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                            {step.detail}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Active step micro progress bar */}
+                      {isActive && (
+                        <div style={{ marginTop: '10px', height: '2px', width: '100%', backgroundColor: 'rgba(6,182,212,0.15)', borderRadius: '1px', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              height: '100%',
+                              width: '40%',
+                              backgroundColor: 'var(--color-primary)',
+                              boxShadow: '0 0 8px var(--color-primary)',
+                              animation: 'pulse 1.5s ease-in-out infinite',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Error Message banner if failed */}
+              {aiError && failedStepIndex !== null && (
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    marginBottom: '20px',
+                  }}
+                >
+                  <AlertTriangle size={18} color="var(--color-status-critical)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-status-critical)', marginBottom: '2px' }}>
+                      Diagnostic Run Halted
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: '#fca5a5', lineHeight: 1.5 }}>
+                      {aiError}
+                    </div>
                   </div>
+                </div>
+              )}
+
+              {/* Live Activity Log Panel */}
+              <div
+                style={{
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: '#050811',
+                  border: '1px solid var(--color-border-subtle)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: 'rgba(255,255,255,0.03)',
+                    borderBottom: '1px solid var(--color-border-subtle)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--color-text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Live Activity Log
+                  </span>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--color-primary)', fontFamily: 'monospace' }}>
+                    stdout / rca-pipeline
+                  </span>
+                </div>
+                <div
+                  ref={logContainerRef}
+                  style={{
+                    padding: '12px 14px',
+                    maxHeight: '160px',
+                    overflowY: 'auto',
+                    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                    fontSize: '0.75rem',
+                    lineHeight: 1.6,
+                    color: '#94a3b8',
+                  }}
+                >
+                  {logs.map((log) => {
+                    const min = String(Math.floor(log.timeSec / 60)).padStart(2, '0');
+                    const sec = String(log.timeSec % 60).padStart(2, '0');
+                    const isErr = log.text.includes('[ERROR]') || log.text.includes('[429]') || log.text.includes('[503]');
+                    return (
+                      <div key={log.id} style={{ display: 'flex', gap: '8px', color: isErr ? '#fca5a5' : '#cbd5e1' }}>
+                        <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>[{min}:{sec}]</span>
+                        <span style={{ wordBreak: 'break-word' }}>{log.text}</span>
+                      </div>
+                    );
+                  })}
+                  {analyzing && (
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: 'var(--color-primary)' }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>
+                        [{String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}]
+                      </span>
+                      <span>_</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -655,6 +1147,284 @@ export const RcaWorkspacePage: React.FC = () => {
           {/* Analysis results */}
           {analysis && !analyzing && (
             <>
+              {/* Completed run activity log toggle */}
+              {logs.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-8px' }}>
+                  <button
+                    onClick={() => setShowLogDrawer((prev) => !prev)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-primary)',
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                    }}
+                  >
+                    <FileText size={12} /> {showLogDrawer ? 'Hide diagnostic log' : 'View diagnostic log'}
+                  </button>
+                </div>
+              )}
+
+              {/* Collapsed/Expanded Log in result view */}
+              {showLogDrawer && logs.length > 0 && (
+                <div
+                  style={{
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: '#050811',
+                    border: '1px solid var(--color-border-subtle)',
+                    padding: '12px 14px',
+                    maxHeight: '140px',
+                    overflowY: 'auto',
+                    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                    fontSize: '0.75rem',
+                    lineHeight: 1.6,
+                    color: '#94a3b8',
+                  }}
+                >
+                  {logs.map((log) => (
+                    <div key={log.id} style={{ display: 'flex', gap: '8px', color: '#cbd5e1' }}>
+                      <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>
+                        [{String(Math.floor(log.timeSec / 60)).padStart(2, '0')}:{String(log.timeSec % 60).padStart(2, '0')}]
+                      </span>
+                      <span style={{ wordBreak: 'break-word' }}>{log.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Spoken Explanation Narration Bar */}
+              {speech.supported && (() => {
+                const narrationSentences = buildNarration(incident, analysis);
+                const isPlaying = speech.state === 'speaking';
+                const isPaused = speech.state === 'paused';
+                const isActive = isPlaying || isPaused;
+
+                return (
+                  <Card
+                    glow={isActive ? 'cyan' : 'none'}
+                    style={{
+                      padding: '14px 18px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: isActive ? '1px solid var(--color-border-focused)' : '1px solid var(--color-border-subtle)',
+                      backgroundColor: 'rgba(6,182,212,0.03)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {/* Play / Pause / Resume Button */}
+                        {!isActive ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={<Volume2 size={15} />}
+                            onClick={() => speech.speak(narrationSentences)}
+                            aria-label="Listen to spoken audio explanation"
+                          >
+                            Listen
+                          </Button>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {isPlaying ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                icon={<Pause size={14} />}
+                                onClick={speech.pause}
+                                aria-label="Pause spoken explanation"
+                              >
+                                Pause
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                icon={<Play size={14} />}
+                                onClick={speech.resume}
+                                aria-label="Resume spoken explanation"
+                              >
+                                Resume
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={<Square size={13} />}
+                              onClick={speech.stop}
+                              aria-label="Stop spoken explanation"
+                            >
+                              Stop
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Title & Animated Equalizer Waveform */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#ffffff' }}>
+                            Audio Briefing
+                          </span>
+                          {isPlaying && (
+                            <div
+                              style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '14px' }}
+                              aria-hidden="true"
+                            >
+                              <style>
+                                {`
+                                  @keyframes waveBar1 { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+                                  @keyframes waveBar2 { 0%, 100% { height: 12px; } 50% { height: 5px; } }
+                                  @keyframes waveBar3 { 0%, 100% { height: 6px; } 50% { height: 13px; } }
+                                  @keyframes waveBar4 { 0%, 100% { height: 10px; } 50% { height: 4px; } }
+                                  @media (prefers-reduced-motion: reduce) {
+                                    .equalizer-bar { animation: none !important; height: 8px !important; }
+                                  }
+                                `}
+                              </style>
+                              <div className="equalizer-bar" style={{ width: '3px', backgroundColor: 'var(--color-primary)', borderRadius: '1px', animation: 'waveBar1 0.7s ease-in-out infinite' }} />
+                              <div className="equalizer-bar" style={{ width: '3px', backgroundColor: 'var(--color-primary)', borderRadius: '1px', animation: 'waveBar2 0.85s ease-in-out infinite' }} />
+                              <div className="equalizer-bar" style={{ width: '3px', backgroundColor: 'var(--color-primary)', borderRadius: '1px', animation: 'waveBar3 0.6s ease-in-out infinite' }} />
+                              <div className="equalizer-bar" style={{ width: '3px', backgroundColor: 'var(--color-primary)', borderRadius: '1px', animation: 'waveBar4 0.75s ease-in-out infinite' }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Voice selector & Transcript toggle */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {/* Voice selector dropdown toggle */}
+                        {speech.voices.length > 0 && (
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              onClick={() => setShowVoiceSelect((prev) => !prev)}
+                              style={{
+                                background: 'transparent',
+                                border: '1px solid var(--color-border-subtle)',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '4px 8px',
+                                color: 'var(--color-text-secondary)',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                              aria-label="Select voice"
+                            >
+                              <span>{speech.selectedVoice ? speech.selectedVoice.name.slice(0, 16) + '...' : 'Select Voice'}</span>
+                              <ChevronDown size={12} />
+                            </button>
+
+                            {showVoiceSelect && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  right: 0,
+                                  top: '100%',
+                                  marginTop: '4px',
+                                  zIndex: 50,
+                                  backgroundColor: 'var(--color-bg-surface)',
+                                  border: '1px solid var(--color-border-default)',
+                                  borderRadius: 'var(--radius-md)',
+                                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                                  padding: '4px',
+                                  maxHeight: '180px',
+                                  overflowY: 'auto',
+                                  width: '240px',
+                                }}
+                              >
+                                {speech.voices.map((v) => (
+                                  <div
+                                    key={`${v.name}-${v.lang}`}
+                                    onClick={() => {
+                                      speech.setSelectedVoice(v);
+                                      setShowVoiceSelect(false);
+                                    }}
+                                    style={{
+                                      padding: '6px 8px',
+                                      fontSize: '0.75rem',
+                                      color: speech.selectedVoice?.name === v.name ? 'var(--color-primary)' : '#e2e8f0',
+                                      backgroundColor: speech.selectedVoice?.name === v.name ? 'rgba(6,182,212,0.1)' : 'transparent',
+                                      cursor: 'pointer',
+                                      borderRadius: 'var(--radius-sm)',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    {v.name} ({v.lang})
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Transcript toggle */}
+                        <button
+                          onClick={() => setShowTranscript((prev) => !prev)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-primary)',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 6px',
+                          }}
+                        >
+                          <FileText size={12} />
+                          {showTranscript ? 'Hide transcript' : 'Show transcript'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expandable Transcript with sentence highlighting */}
+                    {showTranscript && (
+                      <div
+                        style={{
+                          backgroundColor: '#050811',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--color-border-subtle)',
+                          padding: '12px 14px',
+                          fontSize: '0.8125rem',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          Narration Transcript
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {narrationSentences.map((sentence, idx) => {
+                            const isCurrent = speech.currentSentenceIndex === idx && isActive;
+                            return (
+                              <span
+                                key={idx}
+                                style={{
+                                  color: isCurrent ? 'var(--color-primary)' : '#cbd5e1',
+                                  fontWeight: isCurrent ? 600 : 400,
+                                  backgroundColor: isCurrent ? 'rgba(6,182,212,0.08)' : 'transparent',
+                                  padding: isCurrent ? '2px 6px' : '0',
+                                  borderRadius: 'var(--radius-sm)',
+                                  transition: 'all 0.2s ease',
+                                }}
+                              >
+                                {sentence}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })()}
+
               {/* Tab bar */}
               <div
                 style={{
@@ -833,6 +1603,16 @@ export const RcaWorkspacePage: React.FC = () => {
                     </div>
                   )}
                 </Card>
+              )}
+
+              {/* Ask AI Tab */}
+              {activeTab === 'ask-ai' && (
+                <IncidentChatTab
+                  incident={incident}
+                  hasStoredAnalysis={Boolean(analysis)}
+                  onRunAnalysis={handleRunAnalysis}
+                  speech={speech}
+                />
               )}
             </>
           )}
