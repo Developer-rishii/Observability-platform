@@ -23,6 +23,7 @@
 | **Top Feature Nominal Scales** | `backend/app/services/ml/detector.py` | Lines 25–28: `NOMINAL_FEATURE_SCALES = {"error_rate_5m": 0.01, "data_dir_growth_5m": 10.0 * 1024 * 1024}` |
 | **Rule Guards Definition** | `backend/app/services/detection_scheduler.py` | Lines 50–54: `RULE_GUARD_ERROR_RATE = 0.05`, `RULE_GUARD_DATA_GROWTH_BYTES = 1048576`, `RULE_GUARD_CONTAINER_DIE = 1` |
 | **Database Migrations Head** | `backend/alembic/versions/0004_detection_source.py` | Migration `0004_detection_source` confirms head; revisions `0001` through `0004` chained cleanly |
+| **Live Database Table Inventory** | PostgreSQL `db:5432` schema inspection | 14 tables verified: `events` (125,624), `ai_analyses` (59), `incidents` (33), `alerts` (33), `users` (4), `verification_tokens` (3), `password_reset_tokens` (1), `alembic_version` (1), plus 6 schema relation tables |
 | **Total Test Count = 126** | `backend/tests/` | 16 test files verified via pytest discovery in prior run logs |
 | **Live Incident #356 Evidence** | PostgreSQL `incidents` table | `id: 356`, `detected_at: 2026-10-28 10:15:58 UTC`, `resolved_at: 2026-10-28 10:22:28 UTC`, `anomaly_score: 0.7789` |
 | **Top Contributing Feature (#356)**| PostgreSQL `incidents.top_features` | `latency_p95_std_5m` with Z-score $+88.25\sigma$ |
